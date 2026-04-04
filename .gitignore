@@ -1,0 +1,7 @@
+
+# sdk
+sdk/
+
+# openspec
+.claude/
+.opencode/
