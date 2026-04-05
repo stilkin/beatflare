@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -30,11 +35,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import be.pocito.glyphsense.audio.AudioAnalyzer
 import be.pocito.glyphsense.audio.AudioCapture
 import be.pocito.glyphsense.audio.peakAmplitude
 import be.pocito.glyphsense.glyph.GlyphController
@@ -85,6 +95,14 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
     var micPeak by remember { mutableIntStateOf(0) } // 0..32767
     var micPeakPct by remember { mutableIntStateOf(0) } // 0..100
 
+    val analyzer = remember { AudioAnalyzer() }
+    var bassLevel by remember { mutableStateOf(0f) }
+    var bassRaw by remember { mutableStateOf(0f) }
+    var bassFloor by remember { mutableStateOf(0f) }
+    var bassPeak by remember { mutableStateOf(0f) }
+    var spectrum by remember { mutableStateOf(FloatArray(20)) }
+    var beatFlash by remember { mutableIntStateOf(0) } // frames since last beat
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -108,13 +126,24 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Observe mic buffers when capturing
+    // Observe mic buffers when capturing: peak amplitude + FFT analysis
     LaunchedEffect(micRunning) {
         if (micRunning) {
-            capture.buffers.collect { buf ->
-                val p = buf.peakAmplitude()
-                micPeak = p
-                micPeakPct = (p * 100 / 32767).coerceIn(0, 100)
+            try {
+                capture.buffers.collect { buf ->
+                    val p = buf.peakAmplitude()
+                    micPeak = p
+                    micPeakPct = (p * 100 / 32767).coerceIn(0, 100)
+                    val analysis = analyzer.process(buf)
+                    bassLevel = analysis.bassLevel
+                    bassRaw = analysis.bassRaw
+                    bassFloor = analysis.bassFloor
+                    bassPeak = analysis.bassPeak
+                    spectrum = analysis.spectrum
+                    beatFlash = if (analysis.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SpikeScreen", "collect error: ${e.message}", e)
             }
         }
     }
@@ -329,6 +358,47 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
                 progress = { micPeakPct / 100f },
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            HorizontalDivider()
+            Text("Analysis", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                "Bass: ${"%.2f".format(bassLevel)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            LinearProgressIndicator(
+                progress = { bassLevel },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "  log: raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Beat: ",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                val beatColor = if (beatFlash > 0) Color.Red else Color.Gray
+                Box(
+                    modifier = Modifier
+                        .height(24.dp)
+                        .fillMaxWidth()
+                        .background(beatColor),
+                )
+            }
+
+            Text("Spectrum (20 bands)", style = MaterialTheme.typography.bodyMedium)
+            SpectrumBars(
+                values = spectrum,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+            )
         }
 
         HorizontalDivider()
@@ -339,6 +409,26 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
                 line,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Start,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpectrumBars(values: FloatArray, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        if (values.isEmpty()) return@Canvas
+        val w = size.width
+        val h = size.height
+        val barWidth = w / values.size
+        val gap = barWidth * 0.15f
+        for (i in values.indices) {
+            val v = values[i].coerceIn(0f, 1f)
+            val barH = h * v
+            drawRect(
+                color = Color(0xFF4FC3F7),
+                topLeft = Offset(i * barWidth + gap / 2f, h - barH),
+                size = Size(barWidth - gap, barH),
             )
         }
     }

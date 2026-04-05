@@ -85,37 +85,60 @@ class AudioCapture(
 
         val captureScope = CoroutineScope(Dispatchers.IO)
         scope = captureScope
+        // The capture loop owns the recorder's lifecycle once started — it will
+        // stop+release inside the finally block. stop() just flips the flag and
+        // signals the recorder to return from blocking reads.
         captureJob = captureScope.launch {
-            val buf = ShortArray(bufferSamples)
-            while (running) {
-                val read = recorder.read(buf, 0, bufferSamples)
-                if (read > 0) {
-                    // Copy so downstream doesn't see the same array being overwritten
-                    val out = buf.copyOf(read)
-                    _buffers.tryEmit(out)
-                } else if (read < 0) {
-                    Log.w(TAG, "AudioRecord.read returned error code $read")
-                    break
+            try {
+                val buf = ShortArray(bufferSamples)
+                while (running) {
+                    val read = try {
+                        recorder.read(buf, 0, bufferSamples)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "read() threw: ${e.message}")
+                        break
+                    }
+                    if (read > 0) {
+                        val out = buf.copyOf(read)
+                        _buffers.tryEmit(out)
+                    } else if (read < 0) {
+                        Log.w(TAG, "AudioRecord.read returned error code $read")
+                        break
+                    } else {
+                        // read == 0 means recorder was stopped externally
+                        break
+                    }
                 }
+            } finally {
+                try { recorder.stop() } catch (_: Exception) {}
+                try { recorder.release() } catch (_: Exception) {}
+                Log.d(TAG, "Capture loop exited")
             }
         }
         Log.d(TAG, "Started (minBuffer=$minBufferBytes bytes, internal=$internalBufferBytes bytes)")
     }
 
     fun stop() {
+        if (!running) return
         running = false
-        try {
-            audioRecord?.stop()
-        } catch (e: IllegalStateException) {
-            Log.w(TAG, "stop() while not recording: ${e.message}")
-        }
-        audioRecord?.release()
+        // Capture the references, then clear our fields so a subsequent start()
+        // doesn't fight with the old loop's cleanup.
+        val recorder = audioRecord
         audioRecord = null
-        captureJob?.cancel()
         captureJob = null
-        scope?.cancel()
         scope = null
-        Log.d(TAG, "Stopped")
+        // Unblock the loop's blocking read(); the loop's finally clause will
+        // stop + release the recorder on its own. We deliberately DON'T
+        // cancel the job/scope — letting the loop exit naturally avoids racing
+        // the native release().
+        try {
+            recorder?.stop()
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "recorder.stop() threw: ${e.message}")
+        } catch (e: Exception) {
+            Log.w(TAG, "recorder.stop() error: ${e.message}")
+        }
+        Log.d(TAG, "stop() signaled")
     }
 }
 
