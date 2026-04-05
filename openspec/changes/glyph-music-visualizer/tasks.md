@@ -1,8 +1,8 @@
 ## 1. Project Setup
 
-- [ ] 1.1 Set up Android Studio project (Kotlin, Compose, min SDK 34) with proper package structure
-- [ ] 1.2 Integrate Glyph SDK AAR into the project (add to libs, configure Gradle dependency)
-- [ ] 1.3 Add AndroidManifest permissions (RECORD_AUDIO, FOREGROUND_SERVICE, com.nothing.ketchum.permission.ENABLE) and NothingKey meta-data
+- [x] 1.1 Set up Android Studio project (Kotlin, Compose, min SDK 34) with proper package structure
+- [x] 1.2 Integrate Glyph SDK AAR into the project (add to libs, configure Gradle dependency)
+- [x] 1.3 Add AndroidManifest permissions (RECORD_AUDIO, FOREGROUND_SERVICE, com.nothing.ketchum.permission.ENABLE) and NothingKey meta-data
 
 ## 2. Glyph SDK Spike
 

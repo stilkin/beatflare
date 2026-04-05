@@ -40,6 +40,9 @@ android {
 }
 
 dependencies {
+    // Nothing Glyph/Matrix SDK 2.0 (vendor AAR, see app/libs/)
+    implementation(files("libs/glyph-matrix-sdk-2.0.aar"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
