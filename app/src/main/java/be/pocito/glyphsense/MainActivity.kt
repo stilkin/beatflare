@@ -49,6 +49,7 @@ import be.pocito.glyphsense.audio.AudioCapture
 import be.pocito.glyphsense.audio.peakAmplitude
 import be.pocito.glyphsense.glyph.GlyphController
 import be.pocito.glyphsense.glyph.GlyphController.Companion.LED_COUNT_PHONE_3A
+import be.pocito.glyphsense.glyph.GlyphDriver
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,6 +97,8 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
     var micPeakPct by remember { mutableIntStateOf(0) } // 0..100
 
     val analyzer = remember { AudioAnalyzer() }
+    val driver = remember { GlyphDriver() }
+    var drivingGlyphs by remember { mutableStateOf(false) }
     var bassLevel by remember { mutableStateOf(0f) }
     var bassRaw by remember { mutableStateOf(0f) }
     var bassFloor by remember { mutableStateOf(0f) }
@@ -141,6 +144,9 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
                     bassPeak = analysis.bassPeak
                     spectrum = analysis.spectrum
                     beatFlash = if (analysis.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
+                    if (drivingGlyphs && sessionOpen) {
+                        controller.setFrameColors(driver.render(analysis))
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("SpikeScreen", "collect error: ${e.message}", e)
@@ -399,6 +405,32 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .height(80.dp),
             )
+
+            HorizontalDivider()
+            Text("Drive Glyphs", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (!sessionOpen) "Open a glyph session first"
+                else if (drivingGlyphs) "LIVE — audio driving glyphs"
+                else "Not driving glyphs",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = sessionOpen && !drivingGlyphs,
+                onClick = {
+                    drivingGlyphs = true
+                    log("Glyph driving: ON")
+                },
+            ) { Text("Drive glyphs from audio") }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = drivingGlyphs,
+                onClick = {
+                    drivingGlyphs = false
+                    controller.setFrameColors(driver.blankFrame())
+                    log("Glyph driving: OFF")
+                },
+            ) { Text("Stop driving glyphs") }
         }
 
         HorizontalDivider()

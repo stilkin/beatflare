@@ -21,11 +21,11 @@
 
 ## 4. Glyph Visualization Driver
 
-- [ ] 4.1 Create GlyphDriver class that maps band data to IntArray(36) brightness values using the zone layout (C=spectrum, A=bass, B=beats)
-- [ ] 4.2 Implement zone C mapping: 20 spectrum sub-band values → 20 LED brightness levels
-- [ ] 4.3 Implement zone A mapping: bass energy → bottom-up fill of 11 LEDs
-- [ ] 4.4 Implement zone B mapping: beat detection → flash all 5 LEDs with decay
-- [ ] 4.5 Wire GlyphDriver to GlyphManager.setFrameColors() with frame timing at target fps
+- [x] 4.1 Create GlyphDriver class that maps band data to IntArray(36) brightness values using the zone layout (C=spectrum, A=bass, B=beats)
+- [x] 4.2 Implement zone C mapping: 20 spectrum sub-band values → 20 LED brightness levels
+- [x] 4.3 Implement zone A mapping: bass energy → bottom-up fill of 11 LEDs
+- [x] 4.4 Implement zone B mapping: beat detection → flash all 5 LEDs with decay
+- [x] 4.5 Wire GlyphDriver to GlyphManager.setFrameColors() with frame timing at target fps
 
 ## 5. Foreground Service
 
