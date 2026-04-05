@@ -8,16 +8,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -26,6 +26,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -65,25 +66,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             GlyphSenseTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SpikeScreen(modifier = Modifier.padding(innerPadding))
+                    MainScreen(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
     }
 }
 
-/**
- * Spike UI: test Glyph SDK lifecycle, per-LED brightness, refresh rate, and mic capture.
- */
 @Composable
-fun SpikeScreen(modifier: Modifier = Modifier) {
+fun MainScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val controller = remember { GlyphController(context) }
     val capture = remember { AudioCapture() }
+    val analyzer = remember { AudioAnalyzer() }
+    val driver = remember { GlyphDriver() }
 
     var sessionOpen by remember { mutableStateOf(false) }
-    val logLines = remember { mutableStateOf(listOf<String>()) }
+    var micRunning by remember { mutableStateOf(false) }
+    var drivingGlyphs by remember { mutableStateOf(false) }
+    var debugExpanded by remember { mutableStateOf(false) }
 
     var micPermissionGranted by remember {
         mutableStateOf(
@@ -92,33 +94,27 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var micRunning by remember { mutableStateOf(false) }
-    var micPeak by remember { mutableIntStateOf(0) } // 0..32767
-    var micPeakPct by remember { mutableIntStateOf(0) } // 0..100
 
-    val analyzer = remember { AudioAnalyzer() }
-    val driver = remember { GlyphDriver() }
-    var drivingGlyphs by remember { mutableStateOf(false) }
+    // Audio analysis state (updated each frame while mic is running)
+    var micPeakPct by remember { mutableIntStateOf(0) }
     var bassLevel by remember { mutableStateOf(0f) }
     var bassRaw by remember { mutableStateOf(0f) }
     var bassFloor by remember { mutableStateOf(0f) }
     var bassPeak by remember { mutableStateOf(0f) }
     var spectrum by remember { mutableStateOf(FloatArray(20)) }
-    var beatFlash by remember { mutableIntStateOf(0) } // frames since last beat
+    var beatFlash by remember { mutableIntStateOf(0) }
+
+    val logLines = remember { mutableStateOf(listOf<String>()) }
+    fun log(line: String) {
+        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+        logLines.value = (listOf("[$ts] $line") + logLines.value).take(200)
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         micPermissionGranted = granted
-        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        logLines.value = (listOf(
-            "[$ts] RECORD_AUDIO permission " + if (granted) "granted" else "DENIED"
-        ) + logLines.value).take(200)
-    }
-
-    fun log(line: String) {
-        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
-        logLines.value = (listOf("[$ts] $line") + logLines.value).take(200)
+        log("RECORD_AUDIO " + if (granted) "granted" else "DENIED")
     }
 
     DisposableEffect(Unit) {
@@ -129,28 +125,25 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Observe mic buffers when capturing: peak amplitude + FFT analysis
     LaunchedEffect(micRunning) {
-        if (micRunning) {
-            try {
-                capture.buffers.collect { buf ->
-                    val p = buf.peakAmplitude()
-                    micPeak = p
-                    micPeakPct = (p * 100 / 32767).coerceIn(0, 100)
-                    val analysis = analyzer.process(buf)
-                    bassLevel = analysis.bassLevel
-                    bassRaw = analysis.bassRaw
-                    bassFloor = analysis.bassFloor
-                    bassPeak = analysis.bassPeak
-                    spectrum = analysis.spectrum
-                    beatFlash = if (analysis.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
-                    if (drivingGlyphs && sessionOpen) {
-                        controller.setFrameColors(driver.render(analysis))
-                    }
+        if (!micRunning) return@LaunchedEffect
+        try {
+            capture.buffers.collect { buf ->
+                val p = buf.peakAmplitude()
+                micPeakPct = (p * 100 / 32767).coerceIn(0, 100)
+                val analysis = analyzer.process(buf)
+                bassLevel = analysis.bassLevel
+                bassRaw = analysis.bassRaw
+                bassFloor = analysis.bassFloor
+                bassPeak = analysis.bassPeak
+                spectrum = analysis.spectrum
+                beatFlash = if (analysis.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
+                if (drivingGlyphs && sessionOpen) {
+                    controller.setFrameColors(driver.render(analysis))
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("SpikeScreen", "collect error: ${e.message}", e)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("MainScreen", "collect error: ${e.message}", e)
         }
     }
 
@@ -159,51 +152,204 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Glyph SDK Spike", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Session: ${if (sessionOpen) "OPEN" else "closed"}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        // ───── Primary flow ─────
+        Text("GlyphSense", style = MaterialTheme.typography.headlineSmall)
+        StatusRow(sessionOpen, micRunning, drivingGlyphs)
 
         HorizontalDivider()
 
+        // Session
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = !sessionOpen,
             onClick = {
-                log("init() + openSession() ...")
+                log("Opening glyph session...")
                 controller.init(
                     onReady = { sessionOpen = true; log("Session OPEN") },
-                    onError = { err -> log("ERROR: $err") },
+                    onError = { err -> log("Session ERROR: $err") },
                 )
             },
-        ) { Text("Init + Open Session") }
+        ) { Text("Open glyph session") }
 
+        // Mic permission (only shown if not yet granted)
+        if (!micPermissionGranted) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            ) { Text("Grant mic permission") }
+        }
+
+        // Mic start/stop
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
+            enabled = micPermissionGranted,
             onClick = {
-                controller.release()
-                sessionOpen = false
-                log("Released")
+                if (!micRunning) {
+                    capture.start()
+                    micRunning = capture.isRunning()
+                    log(if (micRunning) "Mic started" else "Mic FAILED to start")
+                } else {
+                    capture.stop()
+                    micRunning = false
+                    micPeakPct = 0
+                    log("Mic stopped")
+                }
             },
-        ) { Text("Release Session") }
+        ) { Text(if (micRunning) "Stop mic" else "Start mic") }
 
+        // Drive glyphs
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = sessionOpen && micRunning,
+            onClick = {
+                if (!drivingGlyphs) {
+                    drivingGlyphs = true
+                    log("Glyph driving: ON")
+                } else {
+                    drivingGlyphs = false
+                    controller.setFrameColors(driver.blankFrame())
+                    log("Glyph driving: OFF")
+                }
+            },
+        ) { Text(if (drivingGlyphs) "Stop driving glyphs" else "Drive glyphs from audio") }
+
+        // ───── Live analysis (visible when mic running) ─────
+        if (micRunning) {
+            HorizontalDivider()
+            Text("Analysis", style = MaterialTheme.typography.titleMedium)
+            AnalysisDisplay(
+                micPeakPct = micPeakPct,
+                bassLevel = bassLevel,
+                bassRaw = bassRaw,
+                bassFloor = bassFloor,
+                bassPeak = bassPeak,
+                beatFlash = beatFlash,
+                spectrum = spectrum,
+            )
+        }
+
+        // ───── Debug (collapsed by default) ─────
         HorizontalDivider()
-        Text("LED Tests", style = MaterialTheme.typography.titleMedium)
+        TextButton(onClick = { debugExpanded = !debugExpanded }) {
+            Text(if (debugExpanded) "▾ Debug / LED tests" else "▸ Debug / LED tests")
+        }
+        if (debugExpanded) {
+            DebugPanel(
+                sessionOpen = sessionOpen,
+                onReleaseSession = {
+                    controller.release()
+                    sessionOpen = false
+                    drivingGlyphs = false
+                    log("Session released")
+                },
+                controller = controller,
+                onLog = { log(it) },
+                scope = scope,
+            )
+        }
+
+        // ───── Log ─────
+        HorizontalDivider()
+        Text("Log", style = MaterialTheme.typography.titleMedium)
+        logLines.value.forEach { line ->
+            Text(
+                line,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Start,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusRow(sessionOpen: Boolean, micRunning: Boolean, drivingGlyphs: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            "Glyph session: ${if (sessionOpen) "open" else "closed"}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Microphone: ${if (micRunning) "running" else "stopped"}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Driving glyphs: ${if (drivingGlyphs) "yes" else "no"}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+private fun AnalysisDisplay(
+    micPeakPct: Int,
+    bassLevel: Float,
+    bassRaw: Float,
+    bassFloor: Float,
+    bassPeak: Float,
+    beatFlash: Int,
+    spectrum: FloatArray,
+) {
+    Text("Mic peak: $micPeakPct%", style = MaterialTheme.typography.bodySmall)
+    LinearProgressIndicator(
+        progress = { micPeakPct / 100f },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Text("Bass: ${"%.2f".format(bassLevel)}", style = MaterialTheme.typography.bodyMedium)
+    LinearProgressIndicator(
+        progress = { bassLevel },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        "  log raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
+        style = MaterialTheme.typography.bodySmall,
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Beat: ", style = MaterialTheme.typography.bodyMedium)
+        val beatColor = if (beatFlash > 0) Color.Red else Color.Gray
+        Box(
+            modifier = Modifier
+                .height(24.dp)
+                .fillMaxWidth()
+                .background(beatColor),
+        )
+    }
+
+    Text("Spectrum", style = MaterialTheme.typography.bodyMedium)
+    SpectrumBars(
+        values = spectrum,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
+    )
+}
+
+@Composable
+private fun DebugPanel(
+    sessionOpen: Boolean,
+    onReleaseSession: () -> Unit,
+    controller: GlyphController,
+    onLog: (String) -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = sessionOpen,
+            onClick = onReleaseSession,
+        ) { Text("Release glyph session") }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = sessionOpen,
-            onClick = {
-                val arr = IntArray(LED_COUNT_PHONE_3A)
-                arr[20] = 4095
-                controller.setFrameColors(arr)
-                log("Single LED (A_1, idx 20) @ 4095")
-            },
-        ) { Text("Single LED on (A_1)") }
+            onClick = { controller.turnOff(); onLog("Glyphs off") },
+        ) { Text("Turn off all LEDs") }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
@@ -211,9 +357,9 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
             onClick = {
                 val arr = IntArray(LED_COUNT_PHONE_3A) { 4095 }
                 controller.setFrameColors(arr)
-                log("All LEDs @ 4095")
+                onLog("All LEDs full")
             },
-        ) { Text("All LEDs full") }
+        ) { Text("All LEDs full brightness") }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
@@ -223,226 +369,43 @@ fun SpikeScreen(modifier: Modifier = Modifier) {
                     (i * 4095 / (LED_COUNT_PHONE_3A - 1))
                 }
                 controller.setFrameColors(arr)
-                log("Gradient 0..4095 across 36 LEDs")
+                onLog("Gradient 0..4095")
             },
-        ) { Text("Gradient (brightness test)") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
-            onClick = {
-                val arr = IntArray(LED_COUNT_PHONE_3A) { 255 }
-                controller.setFrameColors(arr)
-                log("All LEDs @ 255 (low test)")
-            },
-        ) { Text("All LEDs @ 255 (low)") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
-            onClick = {
-                controller.turnOff()
-                log("turnOff()")
-            },
-        ) { Text("Turn Off") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
-            onClick = {
-                val arr = IntArray(LED_COUNT_PHONE_3A)
-                for (i in 0..19) arr[i] = 4095
-                controller.setFrameColors(arr)
-                log("Zone C only (idx 0..19) @ 4095")
-            },
-        ) { Text("Only zone C (20 LEDs)") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
-            onClick = {
-                val arr = IntArray(LED_COUNT_PHONE_3A)
-                for (i in 20..30) arr[i] = 4095
-                controller.setFrameColors(arr)
-                log("Zone A only (idx 20..30) @ 4095")
-            },
-        ) { Text("Only zone A (11 LEDs)") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = sessionOpen,
-            onClick = {
-                val arr = IntArray(LED_COUNT_PHONE_3A)
-                for (i in 31..35) arr[i] = 4095
-                controller.setFrameColors(arr)
-                log("Zone B only (idx 31..35) @ 4095")
-            },
-        ) { Text("Only zone B (5 LEDs)") }
+        ) { Text("Gradient 0..4095") }
 
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = sessionOpen,
             onClick = {
                 scope.launch {
-                    log("Walk: lighting idx 0..35, 400ms each")
+                    onLog("Walking idx 0..35 (400ms each)")
                     val arr = IntArray(LED_COUNT_PHONE_3A)
                     for (idx in 0 until LED_COUNT_PHONE_3A) {
                         for (i in arr.indices) arr[i] = 0
                         arr[idx] = 4095
                         controller.setFrameColors(arr)
-                        log("  lit idx $idx")
                         kotlinx.coroutines.delay(400)
                     }
                     controller.turnOff()
-                    log("Walk complete")
+                    onLog("Walk complete")
                 }
             },
         ) { Text("Walk LEDs (slow chase)") }
-
-        HorizontalDivider()
-        Text("Benchmark", style = MaterialTheme.typography.titleMedium)
 
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = sessionOpen,
             onClick = {
                 scope.launch {
-                    log("Benchmark: running 3s loop...")
+                    onLog("Benchmark running (3s)...")
                     val result = withContext(Dispatchers.Default) {
                         benchmarkRefreshRate(controller, durationMs = 3000L)
                     }
-                    log(
-                        "Bench: ${result.frames} frames in ${result.elapsedMs}ms " +
-                            "= ${"%.1f".format(result.fps)} fps"
-                    )
+                    onLog("${result.frames} frames / ${result.elapsedMs}ms = ${"%.1f".format(result.fps)} fps")
                     controller.turnOff()
                 }
             },
         ) { Text("Benchmark refresh rate (3s)") }
-
-        HorizontalDivider()
-        Text("Microphone", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Permission: " + if (micPermissionGranted) "granted" else "NOT granted",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !micPermissionGranted,
-            onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-        ) { Text("Request mic permission") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = micPermissionGranted && !micRunning,
-            onClick = {
-                capture.start()
-                micRunning = capture.isRunning()
-                log(if (micRunning) "Mic capture started" else "Mic capture FAILED to start")
-            },
-        ) { Text("Start mic capture") }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = micRunning,
-            onClick = {
-                capture.stop()
-                micRunning = false
-                micPeak = 0
-                micPeakPct = 0
-                log("Mic capture stopped")
-            },
-        ) { Text("Stop mic capture") }
-
-        if (micRunning) {
-            Text(
-                "Peak: $micPeak / 32767  ($micPeakPct%)",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            LinearProgressIndicator(
-                progress = { micPeakPct / 100f },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            HorizontalDivider()
-            Text("Analysis", style = MaterialTheme.typography.titleMedium)
-
-            Text(
-                "Bass: ${"%.2f".format(bassLevel)}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            LinearProgressIndicator(
-                progress = { bassLevel },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                "  log: raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Beat: ",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                val beatColor = if (beatFlash > 0) Color.Red else Color.Gray
-                Box(
-                    modifier = Modifier
-                        .height(24.dp)
-                        .fillMaxWidth()
-                        .background(beatColor),
-                )
-            }
-
-            Text("Spectrum (20 bands)", style = MaterialTheme.typography.bodyMedium)
-            SpectrumBars(
-                values = spectrum,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-            )
-
-            HorizontalDivider()
-            Text("Drive Glyphs", style = MaterialTheme.typography.titleMedium)
-            Text(
-                if (!sessionOpen) "Open a glyph session first"
-                else if (drivingGlyphs) "LIVE — audio driving glyphs"
-                else "Not driving glyphs",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                enabled = sessionOpen && !drivingGlyphs,
-                onClick = {
-                    drivingGlyphs = true
-                    log("Glyph driving: ON")
-                },
-            ) { Text("Drive glyphs from audio") }
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                enabled = drivingGlyphs,
-                onClick = {
-                    drivingGlyphs = false
-                    controller.setFrameColors(driver.blankFrame())
-                    log("Glyph driving: OFF")
-                },
-            ) { Text("Stop driving glyphs") }
-        }
-
-        HorizontalDivider()
-        Text("Log", style = MaterialTheme.typography.titleMedium)
-
-        logLines.value.forEach { line ->
-            Text(
-                line,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Start,
-            )
-        }
     }
 }
 
@@ -472,10 +435,6 @@ private data class BenchmarkResult(
     val fps: Double,
 )
 
-/**
- * Calls setFrameColors in a tight loop for [durationMs] milliseconds,
- * animating a single-LED "runner" so we visually confirm something's happening.
- */
 private fun benchmarkRefreshRate(
     controller: GlyphController,
     durationMs: Long,
