@@ -29,10 +29,10 @@
 
 ## 5. Foreground Service
 
-- [ ] 5.1 Create GlyphSenseService as a foreground service with persistent notification (status + stop action)
-- [ ] 5.2 Wire AudioCapture → FFT → BandSplitter → Normalizer → GlyphDriver pipeline inside the service
-- [ ] 5.3 Expose band data via SharedFlow for front-screen visualization to observe
-- [ ] 5.4 Handle service lifecycle: start/stop audio capture and glyph session, release resources on destroy
+- [x] 5.1 Create GlyphSenseService as a foreground service with persistent notification (status + stop action)
+- [x] 5.2 Wire AudioCapture → FFT → BandSplitter → Normalizer → GlyphDriver pipeline inside the service
+- [x] 5.3 Expose band data via SharedFlow for front-screen visualization to observe
+- [x] 5.4 Handle service lifecycle: start/stop audio capture and glyph session, release resources on destroy
 
 ## 6. Main UI (Controls)
 
