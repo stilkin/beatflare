@@ -1,27 +1,28 @@
-## 1. App Icon
+## 1. App Icon & Name
 
-- [ ] 1.1 Create or integrate the app icon as adaptive icon (foreground + background vector drawables)
-- [ ] 1.2 Update mipmap references in AndroidManifest if needed
+- [x] 1.1 Integrate app icon as raster mipmap at all densities (from beatflare_icon.jpg)
+- [x] 1.2 Rename app to "BeatFlare" in strings.xml, notification, widget, README
 
 ## 2. Color Palette
 
-- [ ] 2.1 Define primary and secondary accent colors in Color.kt (derived from icon)
-- [ ] 2.2 Update Theme.kt to use the new accent colors in the Material color scheme
-- [ ] 2.3 Replace hardcoded Color(0xFF4FC3F7) in spectrum bars with theme primary
+- [ ] 2.1 Define primary (#E91E8C magenta), secondary (#F4811E orange), surface (#1C1C1E), background (#0D0D0D) in Color.kt
+- [ ] 2.2 Update Theme.kt dark color scheme to use the new accent colors
+- [ ] 2.3 Apply magenta→orange gradient to spectrum bars (left=low freq, right=high freq)
 
 ## 3. Layout Restructure
 
-- [ ] 3.1 Wrap settings controls (brightness, zones, theme) in a Card composable
-- [ ] 3.2 Wrap analysis display (spectrum, bass, beat) in a Card composable
-- [ ] 3.3 Style start/stop button with accent color (filled when running, outlined when stopped)
-- [ ] 3.4 Style party mode button with secondary accent
-- [ ] 3.5 Move debug log values (raw/floor/peak) into a collapsible section within the analysis card
-- [ ] 3.6 Improve status indicator — replace plain text with a styled chip or dot + text
+- [ ] 3.1 Promote spectrum bars + bass bar to hero position at top (large, in a dark card)
+- [ ] 3.2 Integrate beat indicator into the visualizer card (flash/pulse instead of separate box)
+- [ ] 3.3 Style start/stop as a large gradient-filled button (magenta when running)
+- [ ] 3.4 Style party mode button with orange accent
+- [ ] 3.5 Wrap settings (brightness, zone toggles) in a subtle dark card
+- [ ] 3.6 Replace "Visualizer: RUNNING/stopped" with a colored dot + text status
+- [ ] 3.7 Collapse debug values (raw/floor/peak) behind a tap
 
 ## 4. Widget & Notification
 
-- [ ] 4.1 Update widget_bg_running.xml to use the primary accent color
-- [ ] 4.2 Update notification builder to use accent color tint if applicable
+- [ ] 4.1 Update widget_bg_running.xml to use the primary accent magenta
+- [ ] 4.2 Update notification accent color
 
 ## 5. Verification
 
