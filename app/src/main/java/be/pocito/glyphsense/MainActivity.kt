@@ -11,23 +11,33 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,15 +50,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.service.GlyphSenseService
 import be.pocito.glyphsense.ui.PartyOverlay
+import be.pocito.glyphsense.ui.theme.BeatFlareMagenta
+import be.pocito.glyphsense.ui.theme.BeatFlareOnSurfaceDim
+import be.pocito.glyphsense.ui.theme.BeatFlareOrange
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
 import kotlin.math.roundToInt
 
@@ -60,7 +79,10 @@ class MainActivity : ComponentActivity() {
             GlyphSenseTheme {
                 var partyMode by remember { mutableStateOf(false) }
                 Box(Modifier.fillMaxSize()) {
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ) { innerPadding ->
                         MainScreen(
                             modifier = Modifier.padding(innerPadding),
                             onPartyMode = { partyMode = true },
@@ -136,105 +158,351 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("BeatFlare", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Visualizer: ${if (isRunning) "RUNNING" else "stopped"}",
-            style = MaterialTheme.typography.bodyMedium,
+        // ── Header ──
+        Spacer(Modifier.height(8.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher),
+                contentDescription = "BeatFlare",
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "BeatFlare",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.sp,
+                ),
+                color = BeatFlareOnSurfaceDim,
+            )
+            Spacer(Modifier.height(4.dp))
+            StatusDot(isRunning)
+        }
+
+        // ── Visualizer card (hero) ──
+        VisualizerCard(
+            spectrum = spectrum,
+            bassLevel = bassLevel,
+            beatFlash = beatFlash,
+            isRunning = isRunning,
         )
 
-        HorizontalDivider()
-
-        // ── Permissions ──
+        // ── Permissions (only if needed) ──
         if (!micGranted) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
             ) { Text("Grant mic permission") }
         }
         if (!notifGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
             ) { Text("Grant notification permission") }
         }
 
-        // ── Start / Stop ──
-        Button(
-            modifier = Modifier.fillMaxWidth(),
+        // ── Start / Stop button ──
+        GradientButton(
+            text = if (isRunning) "Stop Visualizer" else "Start Visualizer",
             enabled = canStart,
+            isActive = isRunning,
             onClick = {
                 if (isRunning) context.startService(GlyphSenseService.intentStop(context))
                 else context.startForegroundService(GlyphSenseService.intentStart(context))
             },
-        ) { Text(if (isRunning) "Stop visualizer" else "Start visualizer") }
+        )
 
-        if (!canStart) {
-            Text("Grant both permissions above to start.",
-                style = MaterialTheme.typography.bodySmall)
+        // ── Party mode button ──
+        Button(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            enabled = isRunning,
+            onClick = onPartyMode,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = BeatFlareOrange,
+                contentColor = Color.White,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text("Party Mode", fontWeight = FontWeight.SemiBold)
         }
 
-        // ── Settings ──
-        HorizontalDivider()
-        SettingsPanel(
+        // ── Settings card ──
+        SettingsCard(
             settings = settings,
             onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
         )
 
-        // ── Party mode ──
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = isRunning,
-            onClick = onPartyMode,
-        ) { Text("Party mode") }
-
-        // ── Analysis ──
+        // ── Debug (collapsed) ──
         if (isRunning) {
-            HorizontalDivider()
-            Text("Analysis", style = MaterialTheme.typography.titleMedium)
-            AnalysisDisplay(
-                bassLevel = bassLevel,
-                bassRaw = bassRaw,
-                bassFloor = bassFloor,
-                bassPeak = bassPeak,
-                beatFlash = beatFlash,
-                spectrum = spectrum,
+            DebugSection(bassRaw, bassFloor, bassPeak)
+        }
+
+        if (!canStart) {
+            Text(
+                "Grant both permissions above to start.",
+                style = MaterialTheme.typography.bodySmall,
+                color = BeatFlareOnSurfaceDim,
             )
         }
     }
 }
 
-// ─────────────────── Settings panel ───────────────────
+// ─────────────────── Status dot ───────────────────
 
 @Composable
-private fun SettingsPanel(
+private fun StatusDot(isRunning: Boolean) {
+    val color = if (isRunning) Color(0xFF4CAF50) else BeatFlareOnSurfaceDim
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            if (isRunning) "Running" else "Stopped",
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+        )
+    }
+}
+
+// ─────────────────── Visualizer card ───────────────────
+
+@Composable
+private fun VisualizerCard(
+    spectrum: FloatArray,
+    bassLevel: Float,
+    beatFlash: Int,
+    isRunning: Boolean,
+) {
+    val beatAlpha = if (beatFlash > 0) 0.15f else 0f
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (beatAlpha > 0f) Modifier.background(BeatFlareOrange.copy(alpha = beatAlpha))
+                    else Modifier
+                ),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Spectrum bars — the hero
+                GradientSpectrumBars(
+                    values = spectrum,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                )
+
+                // Bass bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "BASS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = BeatFlareOnSurfaceDim,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(bassLevel.coerceIn(0f, 1f))
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(BeatFlareMagenta, BeatFlareOrange)
+                                    )
+                                ),
+                        )
+                    }
+                }
+
+                if (!isRunning) {
+                    Text(
+                        "Start the visualizer to see audio analysis",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BeatFlareOnSurfaceDim,
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GradientSpectrumBars(values: FloatArray, modifier: Modifier = Modifier) {
+    val magenta = BeatFlareMagenta
+    val orange = BeatFlareOrange
+
+    Canvas(modifier = modifier) {
+        if (values.isEmpty()) return@Canvas
+        val w = size.width
+        val h = size.height
+        val barWidth = w / values.size
+        val gap = barWidth * 0.12f
+        val cornerRadius = barWidth * 0.2f
+
+        for (i in values.indices) {
+            val v = values[i].coerceIn(0f, 1f)
+            val barH = h * v
+            if (barH < 1f) continue
+
+            // Gradient color: magenta (left) → orange (right)
+            val fraction = i.toFloat() / (values.size - 1).coerceAtLeast(1)
+            val barColor = lerp(magenta, orange, fraction)
+
+            drawRoundRect(
+                color = barColor,
+                topLeft = Offset(i * barWidth + gap / 2f, h - barH),
+                size = Size(barWidth - gap, barH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius),
+            )
+        }
+    }
+}
+
+// ─────────────────── Gradient button ───────────────────
+
+@Composable
+private fun GradientButton(
+    text: String,
+    enabled: Boolean,
+    isActive: Boolean,
+    onClick: () -> Unit,
+) {
+    if (enabled) {
+        val gradient = Brush.horizontalGradient(
+            if (isActive) listOf(BeatFlareMagenta, BeatFlareOrange)
+            else listOf(BeatFlareMagenta.copy(alpha = 0.8f), BeatFlareOrange.copy(alpha = 0.8f))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(gradient)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text, color = Color.White, fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        Button(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            enabled = false,
+            onClick = {},
+            colors = ButtonDefaults.buttonColors(
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Text(text)
+        }
+    }
+}
+
+// ─────────────────── Settings card ───────────────────
+
+@Composable
+private fun SettingsCard(
     settings: VisualizerSettings,
     onSettingsChange: (VisualizerSettings) -> Unit,
 ) {
-    Text("Settings", style = MaterialTheme.typography.titleMedium)
-
-    Text("Brightness: ${(settings.brightness * 100).roundToInt()}%",
-        style = MaterialTheme.typography.bodyMedium)
-    Slider(
-        value = settings.brightness,
-        onValueChange = { onSettingsChange(settings.copy(brightness = it)) },
+    Card(
         modifier = Modifier.fillMaxWidth(),
-    )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        ZoneToggle("Spectrum", settings.zoneCEnabled) {
-            onSettingsChange(settings.copy(zoneCEnabled = it))
-        }
-        ZoneToggle("Bass", settings.zoneAEnabled) {
-            onSettingsChange(settings.copy(zoneAEnabled = it))
-        }
-        ZoneToggle("Beat", settings.zoneBEnabled) {
-            onSettingsChange(settings.copy(zoneBEnabled = it))
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.titleSmall,
+                color = BeatFlareOnSurfaceDim,
+            )
+
+            // Brightness
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Brightness",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.width(90.dp),
+                )
+                Slider(
+                    value = settings.brightness,
+                    onValueChange = { onSettingsChange(settings.copy(brightness = it)) },
+                    modifier = Modifier.weight(1f),
+                    colors = SliderDefaults.colors(
+                        thumbColor = BeatFlareMagenta,
+                        activeTrackColor = BeatFlareMagenta,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                )
+                Text(
+                    "${(settings.brightness * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = BeatFlareOnSurfaceDim,
+                    modifier = Modifier.width(36.dp),
+                )
+            }
+
+            // Zone toggles
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                ZoneToggle("Spectrum", settings.zoneCEnabled) {
+                    onSettingsChange(settings.copy(zoneCEnabled = it))
+                }
+                ZoneToggle("Bass", settings.zoneAEnabled) {
+                    onSettingsChange(settings.copy(zoneAEnabled = it))
+                }
+                ZoneToggle("Beat", settings.zoneBEnabled) {
+                    onSettingsChange(settings.copy(zoneBEnabled = it))
+                }
+            }
         }
     }
 }
@@ -242,55 +510,40 @@ private fun SettingsPanel(
 @Composable
 private fun ZoneToggle(label: String, enabled: Boolean, onToggle: (Boolean) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Switch(checked = enabled, onCheckedChange = onToggle)
-        Text(label, style = MaterialTheme.typography.bodySmall)
+        Switch(
+            checked = enabled,
+            onCheckedChange = onToggle,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = BeatFlareMagenta,
+                uncheckedThumbColor = BeatFlareOnSurfaceDim,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else BeatFlareOnSurfaceDim,
+        )
     }
 }
 
-// ─────────────────── Analysis display ───────────────────
+// ─────────────────── Debug section ───────────────────
 
 @Composable
-private fun AnalysisDisplay(
-    bassLevel: Float,
-    bassRaw: Float,
-    bassFloor: Float,
-    bassPeak: Float,
-    beatFlash: Int,
-    spectrum: FloatArray,
-) {
-    Text("Bass: ${"%.2f".format(bassLevel)}", style = MaterialTheme.typography.bodyMedium)
-    LinearProgressIndicator(progress = { bassLevel }, modifier = Modifier.fillMaxWidth())
-    Text(
-        "  log raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
-        style = MaterialTheme.typography.bodySmall,
-    )
-
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Beat: ", style = MaterialTheme.typography.bodyMedium)
-        val beatColor = if (beatFlash > 0) Color.Red else Color.Gray
-        Box(Modifier.height(24.dp).fillMaxWidth().background(beatColor))
+private fun DebugSection(bassRaw: Float, bassFloor: Float, bassPeak: Float) {
+    var expanded by remember { mutableStateOf(false) }
+    TextButton(onClick = { expanded = !expanded }) {
+        Text(
+            if (expanded) "▾ Debug" else "▸ Debug",
+            color = BeatFlareOnSurfaceDim,
+        )
     }
-
-    Text("Spectrum", style = MaterialTheme.typography.bodyMedium)
-    SpectrumBars(values = spectrum, modifier = Modifier.fillMaxWidth().height(80.dp))
-}
-
-@Composable
-private fun SpectrumBars(values: FloatArray, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        if (values.isEmpty()) return@Canvas
-        val w = size.width
-        val h = size.height
-        val barWidth = w / values.size
-        val gap = barWidth * 0.15f
-        for (i in values.indices) {
-            val v = values[i].coerceIn(0f, 1f)
-            val barH = h * v
-            drawRect(
-                color = Color(0xFF4FC3F7),
-                topLeft = Offset(i * barWidth + gap / 2f, h - barH),
-                size = Size(barWidth - gap, barH),
-            )
-        }
+    if (expanded) {
+        Text(
+            "log raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = BeatFlareOnSurfaceDim,
+        )
     }
 }
