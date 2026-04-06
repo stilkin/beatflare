@@ -18,6 +18,9 @@ data class DeviceProfile(
 ) {
     val spectrumBands: Int get() = spectrumIndices.size
 
+    // Profiles are static singletons — name uniquely identifies a profile.
+    // IntArray fields don't need comparison since profiles are never
+    // constructed dynamically with the same name but different indices.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is DeviceProfile) return false

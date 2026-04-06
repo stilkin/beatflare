@@ -80,7 +80,8 @@ class GlyphSenseService : Service() {
             appContext?.let { SettingsStore.save(it, _settings.value) }
         }
 
-        /** Load persisted settings without requiring the service to be running. */
+        /** Load persisted settings without requiring the service to be running.
+         *  Called from main thread only (LaunchedEffect in MainScreen, onCreate in service). */
         fun loadSettingsIfNeeded(context: Context) {
             if (appContext == null) {
                 appContext = context.applicationContext
@@ -102,8 +103,6 @@ class GlyphSenseService : Service() {
     private lateinit var analyzer: AudioAnalyzer
     private lateinit var driver: GlyphDriver
     private var deviceProfile: DeviceProfile? = null
-
-    private val isNothingDevice = GlyphController.isNothingDevice()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var pipelineJob: Job? = null
 
