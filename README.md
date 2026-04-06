@@ -1,10 +1,10 @@
-# GlyphSense
+# BeatFlare
 
 A live music visualizer for the **Nothing Phone (3a)** that drives the glyph LEDs from microphone audio. Designed for concerts and festivals -- hold your phone face-down and watch the back light up in sync with the music.
 
 ## What it does
 
-GlyphSense captures audio from the microphone, runs real-time FFT analysis, and maps the frequency spectrum onto the 36 glyph LEDs:
+BeatFlare captures audio from the microphone, runs real-time FFT analysis, and maps the frequency spectrum onto the 36 glyph LEDs:
 
 | Zone | LEDs | Visualization |
 |------|------|---------------|
@@ -74,7 +74,7 @@ app/src/main/java/be/pocito/glyphsense/
   model/
     VisualizerSettings.kt   Runtime settings (brightness, zone toggles)
   service/
-    GlyphSenseService.kt    Foreground service owning the pipeline
+    BeatFlareService.kt    Foreground service owning the pipeline
   ui/
     PartyOverlay.kt          Full-screen color visualization
   MainActivity.kt            Main UI

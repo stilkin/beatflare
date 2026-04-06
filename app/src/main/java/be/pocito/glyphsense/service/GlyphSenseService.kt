@@ -49,7 +49,7 @@ class GlyphSenseService : Service() {
     companion object {
         private const val TAG = "GlyphSenseService"
         private const val CHANNEL_ID = "glyphsense_foreground"
-        private const val CHANNEL_NAME = "GlyphSense visualizer"
+        private const val CHANNEL_NAME = "BeatFlare visualizer"
         private const val NOTIF_ID = 1001
 
         private const val ACTION_START = "be.pocito.glyphsense.action.START"
@@ -186,7 +186,7 @@ class GlyphSenseService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "GlyphSense audio visualizer running"
+            description = "BeatFlare audio visualizer running"
             setShowBadge(false)
         }
         mgr.createNotificationChannel(channel)
@@ -208,7 +208,7 @@ class GlyphSenseService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("GlyphSense")
+            .setContentTitle("BeatFlare")
             .setContentText("Visualizing audio on glyphs")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)

@@ -139,7 +139,7 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("GlyphSense", style = MaterialTheme.typography.headlineSmall)
+        Text("BeatFlare", style = MaterialTheme.typography.headlineSmall)
         Text(
             "Visualizer: ${if (isRunning) "RUNNING" else "stopped"}",
             style = MaterialTheme.typography.bodyMedium,
