@@ -21,5 +21,5 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Build and verify on Nothing Phone (3a) — all existing functionality preserved
-- [ ] 4.2 Verify settings survive app force-kill and relaunch
+- [x] 4.1 Build and verify on Nothing Phone (3a) — all existing functionality preserved
+- [x] 4.2 Verify settings survive app force-kill and relaunch
