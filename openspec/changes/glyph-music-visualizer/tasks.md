@@ -38,13 +38,13 @@
 
 - [x] 6.1 Create MainActivity with Compose UI: start/stop button, service status indicator
 - [x] 6.2 Bind to GlyphSenseService and observe running state
-- [ ] 6.3 Add sensitivity/mode controls if applicable after spike results
+- [x] 6.3 Add sensitivity/mode controls if applicable after spike results
 
 ## 7. Front-Screen Visualization (Stretch)
 
-- [ ] 7.1 Create a full-screen Compose Canvas that renders a color wash (hue from dominant frequency, brightness from amplitude)
-- [ ] 7.2 Add party mode toggle button in the main UI
-- [ ] 7.3 Observe SharedFlow band data from service and drive the color visualization
+- [x] 7.1 Create a full-screen Compose Canvas that renders a color wash (hue from dominant frequency, brightness from amplitude)
+- [x] 7.2 Add party mode toggle button in the main UI
+- [x] 7.3 Observe SharedFlow band data from service and drive the color visualization
 
 ## 8. Home Screen Widget (Stretch)
 

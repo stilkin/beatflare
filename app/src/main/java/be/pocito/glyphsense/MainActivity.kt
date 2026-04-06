@@ -26,6 +26,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,11 +44,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.service.GlyphSenseService
+import be.pocito.glyphsense.ui.PartyOverlay
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,8 +58,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GlyphSenseTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(modifier = Modifier.padding(innerPadding))
+                var partyMode by remember { mutableStateOf(false) }
+                Box(Modifier.fillMaxSize()) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        MainScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            onPartyMode = { partyMode = true },
+                        )
+                    }
+                    if (partyMode) {
+                        PartyOverlay(onDismiss = { partyMode = false })
+                    }
                 }
             }
         }
@@ -63,37 +76,38 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
+fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
     val context = LocalContext.current
 
     // Permissions
-    var micPermissionGranted by remember {
+    var micGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var notifPermissionGranted by remember {
+    var notifGranted by remember {
         mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 ContextCompat.checkSelfPermission(
                     context, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
-            } else true
+            else true
         )
     }
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> micPermissionGranted = granted }
+    ) { micGranted = it }
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> notifPermissionGranted = granted }
+    ) { notifGranted = it }
 
-    // Service state (observable static flows on the service companion)
+    // Service state
     val isRunning by GlyphSenseService.isRunning.collectAsState()
+    val settings by GlyphSenseService.settings.collectAsState()
 
-    // Live analysis derived state
+    // Live analysis
     var bassLevel by remember { mutableStateOf(0f) }
     var spectrum by remember { mutableStateOf(FloatArray(20)) }
     var beatFlash by remember { mutableIntStateOf(0) }
@@ -103,22 +117,20 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
     LaunchedEffect(isRunning) {
         if (!isRunning) {
-            bassLevel = 0f
-            spectrum = FloatArray(20)
-            beatFlash = 0
+            bassLevel = 0f; spectrum = FloatArray(20); beatFlash = 0
             return@LaunchedEffect
         }
-        GlyphSenseService.analysisFlow.collect { analysis ->
-            bassLevel = analysis.bassLevel
-            bassRaw = analysis.bassRaw
-            bassFloor = analysis.bassFloor
-            bassPeak = analysis.bassPeak
-            spectrum = analysis.spectrum
-            beatFlash = if (analysis.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
+        GlyphSenseService.analysisFlow.collect { a ->
+            bassLevel = a.bassLevel
+            bassRaw = a.bassRaw
+            bassFloor = a.bassFloor
+            bassPeak = a.bassPeak
+            spectrum = a.spectrum
+            beatFlash = if (a.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
         }
     }
 
-    val canStart = micPermissionGranted && notifPermissionGranted
+    val canStart = micGranted && notifGranted
 
     Column(
         modifier = modifier
@@ -135,41 +147,50 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
         HorizontalDivider()
 
-        // Permission prompts (only shown when needed)
-        if (!micPermissionGranted) {
+        // ── Permissions ──
+        if (!micGranted) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
             ) { Text("Grant mic permission") }
         }
-        if (!notifPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (!notifGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
             ) { Text("Grant notification permission") }
         }
 
-        // Start / stop
+        // ── Start / Stop ──
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = canStart,
             onClick = {
-                if (isRunning) {
-                    context.startService(GlyphSenseService.intentStop(context))
-                } else {
-                    context.startForegroundService(GlyphSenseService.intentStart(context))
-                }
+                if (isRunning) context.startService(GlyphSenseService.intentStop(context))
+                else context.startForegroundService(GlyphSenseService.intentStart(context))
             },
         ) { Text(if (isRunning) "Stop visualizer" else "Start visualizer") }
 
         if (!canStart) {
-            Text(
-                "Grant both permissions above to start.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("Grant both permissions above to start.",
+                style = MaterialTheme.typography.bodySmall)
         }
 
-        // Live analysis display
+        // ── Settings ──
+        HorizontalDivider()
+        SettingsPanel(
+            settings = settings,
+            onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
+        )
+
+        // ── Party mode ──
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = isRunning,
+            onClick = onPartyMode,
+        ) { Text("Party mode") }
+
+        // ── Analysis ──
         if (isRunning) {
             HorizontalDivider()
             Text("Analysis", style = MaterialTheme.typography.titleMedium)
@@ -182,12 +203,51 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 spectrum = spectrum,
             )
         }
-
-        // Debug panel (collapsed)
-        HorizontalDivider()
-        DebugSection()
     }
 }
+
+// ─────────────────── Settings panel ───────────────────
+
+@Composable
+private fun SettingsPanel(
+    settings: VisualizerSettings,
+    onSettingsChange: (VisualizerSettings) -> Unit,
+) {
+    Text("Settings", style = MaterialTheme.typography.titleMedium)
+
+    Text("Brightness: ${(settings.brightness * 100).roundToInt()}%",
+        style = MaterialTheme.typography.bodyMedium)
+    Slider(
+        value = settings.brightness,
+        onValueChange = { onSettingsChange(settings.copy(brightness = it)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        ZoneToggle("Spectrum", settings.zoneCEnabled) {
+            onSettingsChange(settings.copy(zoneCEnabled = it))
+        }
+        ZoneToggle("Bass", settings.zoneAEnabled) {
+            onSettingsChange(settings.copy(zoneAEnabled = it))
+        }
+        ZoneToggle("Beat", settings.zoneBEnabled) {
+            onSettingsChange(settings.copy(zoneBEnabled = it))
+        }
+    }
+}
+
+@Composable
+private fun ZoneToggle(label: String, enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Switch(checked = enabled, onCheckedChange = onToggle)
+        Text(label, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+// ─────────────────── Analysis display ───────────────────
 
 @Composable
 private fun AnalysisDisplay(
@@ -199,52 +259,20 @@ private fun AnalysisDisplay(
     spectrum: FloatArray,
 ) {
     Text("Bass: ${"%.2f".format(bassLevel)}", style = MaterialTheme.typography.bodyMedium)
-    LinearProgressIndicator(
-        progress = { bassLevel },
-        modifier = Modifier.fillMaxWidth(),
-    )
+    LinearProgressIndicator(progress = { bassLevel }, modifier = Modifier.fillMaxWidth())
     Text(
         "  log raw=${"%.1f".format(bassRaw)}  floor=${"%.1f".format(bassFloor)}  peak=${"%.1f".format(bassPeak)}",
         style = MaterialTheme.typography.bodySmall,
     )
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("Beat: ", style = MaterialTheme.typography.bodyMedium)
         val beatColor = if (beatFlash > 0) Color.Red else Color.Gray
-        Box(
-            modifier = Modifier
-                .height(24.dp)
-                .fillMaxWidth()
-                .background(beatColor),
-        )
+        Box(Modifier.height(24.dp).fillMaxWidth().background(beatColor))
     }
 
     Text("Spectrum", style = MaterialTheme.typography.bodyMedium)
-    SpectrumBars(
-        values = spectrum,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(80.dp),
-    )
-}
-
-@Composable
-private fun DebugSection() {
-    var expanded by remember { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }) {
-        Text(if (expanded) "▾ Info" else "▸ Info")
-    }
-    if (expanded) {
-        Text(
-            "The visualizer runs as a foreground service, so it keeps working " +
-                "when the screen is off. A persistent notification shows its status " +
-                "and provides a Stop action.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
+    SpectrumBars(values = spectrum, modifier = Modifier.fillMaxWidth().height(80.dp))
 }
 
 @Composable

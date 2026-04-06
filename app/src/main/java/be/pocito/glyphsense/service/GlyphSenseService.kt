@@ -19,6 +19,7 @@ import be.pocito.glyphsense.audio.AudioAnalyzer
 import be.pocito.glyphsense.audio.AudioCapture
 import be.pocito.glyphsense.glyph.GlyphController
 import be.pocito.glyphsense.glyph.GlyphDriver
+import be.pocito.glyphsense.model.VisualizerSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +65,14 @@ class GlyphSenseService : Service() {
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
         val analysisFlow: SharedFlow<AudioAnalysis> = _analysisFlow.asSharedFlow()
+
+        // Settings controllable from the UI at runtime.
+        private val _settings = MutableStateFlow(VisualizerSettings())
+        val settings: StateFlow<VisualizerSettings> = _settings.asStateFlow()
+
+        fun updateSettings(block: (VisualizerSettings) -> VisualizerSettings) {
+            _settings.update(block)
+        }
 
         fun intentStart(context: Context): Intent =
             Intent(context, GlyphSenseService::class.java).setAction(ACTION_START)
@@ -137,7 +147,7 @@ class GlyphSenseService : Service() {
                 capture.buffers.collect { buf ->
                     val analysis = analyzer.process(buf)
                     _analysisFlow.tryEmit(analysis)
-                    controller.setFrameColors(driver.render(analysis))
+                    controller.setFrameColors(driver.render(analysis, _settings.value))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "pipeline error: ${e.message}", e)
