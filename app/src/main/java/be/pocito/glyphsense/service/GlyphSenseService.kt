@@ -19,6 +19,7 @@ import be.pocito.glyphsense.audio.AudioAnalyzer
 import be.pocito.glyphsense.audio.AudioCapture
 import be.pocito.glyphsense.glyph.GlyphController
 import be.pocito.glyphsense.glyph.GlyphDriver
+import be.pocito.glyphsense.model.SettingsStore
 import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.widget.GlyphSenseWidget
 import kotlinx.coroutines.CoroutineScope
@@ -71,9 +72,22 @@ class GlyphSenseService : Service() {
         private val _settings = MutableStateFlow(VisualizerSettings())
         val settings: StateFlow<VisualizerSettings> = _settings.asStateFlow()
 
+        private var appContext: Context? = null
+
         fun updateSettings(block: (VisualizerSettings) -> VisualizerSettings) {
             _settings.update(block)
+            appContext?.let { SettingsStore.save(it, _settings.value) }
         }
+
+        /** Load persisted settings without requiring the service to be running. */
+        fun loadSettingsIfNeeded(context: Context) {
+            if (appContext == null) {
+                appContext = context.applicationContext
+                _settings.value = SettingsStore.load(context.applicationContext)
+            }
+        }
+
+        val isNothingDevice: Boolean = GlyphController.isNothingDevice()
 
         fun intentStart(context: Context): Intent =
             Intent(context, GlyphSenseService::class.java).setAction(ACTION_START)
@@ -82,11 +96,12 @@ class GlyphSenseService : Service() {
             Intent(context, GlyphSenseService::class.java).setAction(ACTION_STOP)
     }
 
-    private lateinit var controller: GlyphController
+    private var controller: GlyphController? = null
     private lateinit var capture: AudioCapture
     private lateinit var analyzer: AudioAnalyzer
     private lateinit var driver: GlyphDriver
 
+    private val isNothingDevice = GlyphController.isNothingDevice()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var pipelineJob: Job? = null
 
@@ -94,8 +109,10 @@ class GlyphSenseService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "onCreate")
-        controller = GlyphController(applicationContext)
+        Log.d(TAG, "onCreate (nothingDevice=$isNothingDevice)")
+        appContext = applicationContext
+        _settings.value = SettingsStore.load(applicationContext)
+        if (isNothingDevice) controller = GlyphController(applicationContext)
         capture = AudioCapture()
         analyzer = AudioAnalyzer()
         driver = GlyphDriver()
@@ -122,7 +139,7 @@ class GlyphSenseService : Service() {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
         stopPipeline()
-        controller.release()
+        controller?.release()
         _isRunning.value = false
         scope.coroutineContext[Job]?.cancel()
         super.onDestroy()
@@ -132,7 +149,7 @@ class GlyphSenseService : Service() {
 
     private fun startPipeline() {
         if (pipelineJob != null) return // already running
-        controller.init(
+        controller?.init(
             onReady = { Log.d(TAG, "Glyph session open") },
             onError = { e -> Log.e(TAG, "Glyph init failed: $e") },
         )
@@ -149,7 +166,7 @@ class GlyphSenseService : Service() {
                 capture.buffers.collect { buf ->
                     val analysis = analyzer.process(buf)
                     _analysisFlow.tryEmit(analysis)
-                    controller.setFrameColors(driver.render(analysis, _settings.value))
+                    controller?.setFrameColors(driver.render(analysis, _settings.value))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "pipeline error: ${e.message}", e)
@@ -161,7 +178,7 @@ class GlyphSenseService : Service() {
         pipelineJob?.cancel()
         pipelineJob = null
         capture.stop()
-        controller.setFrameColors(driver.blankFrame())
+        controller?.setFrameColors(driver.blankFrame())
         _isRunning.value = false
         GlyphSenseWidget.notifyStateChanged(applicationContext)
     }

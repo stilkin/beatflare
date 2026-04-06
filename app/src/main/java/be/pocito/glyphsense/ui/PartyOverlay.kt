@@ -23,22 +23,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import be.pocito.glyphsense.audio.AudioAnalysis
 import be.pocito.glyphsense.service.GlyphSenseService
 
 /**
- * Full-screen color wash visualization.
- *
- * - **Hue** shifts with the dominant frequency band (0–19 → 0°–360°)
- * - **Lightness** pulses with bass amplitude
- * - **Beat** triggers a brief brightness flash
- * - Tap anywhere to dismiss
- * - Screen stays on while active
+ * Full-screen color wash visualization driven by the selected [PartyTheme].
+ * Tap anywhere to dismiss. Screen stays on while active.
  */
 @Composable
 fun PartyOverlay(onDismiss: () -> Unit) {
     val activity = LocalContext.current as? Activity
 
-    // Keep screen on while party mode is active.
     DisposableEffect(Unit) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
@@ -46,39 +41,30 @@ fun PartyOverlay(onDismiss: () -> Unit) {
         }
     }
 
-    // Observe service state
     val isRunning by GlyphSenseService.isRunning.collectAsState()
-    var bassLevel by remember { mutableStateOf(0f) }
-    var spectrum by remember { mutableStateOf(FloatArray(20)) }
+    val settings by GlyphSenseService.settings.collectAsState()
+
+    var latestAnalysis by remember { mutableStateOf<AudioAnalysis?>(null) }
     var beatFlash by remember { mutableIntStateOf(0) }
 
-    // Collect live analysis from the service
     LaunchedEffect(isRunning) {
         if (!isRunning) return@LaunchedEffect
         GlyphSenseService.analysisFlow.collect { analysis ->
-            bassLevel = analysis.bassLevel
-            spectrum = analysis.spectrum
+            latestAnalysis = analysis
             beatFlash = if (analysis.beat) 4 else (beatFlash - 1).coerceAtLeast(0)
         }
     }
 
-    // Auto-exit if service stops
     LaunchedEffect(isRunning) {
         if (!isRunning) onDismiss()
     }
 
-    // Derive color from analysis
-    val dominantIndex = spectrum.indices.maxByOrNull { spectrum[it] } ?: 0
-    val hue = dominantIndex.toFloat() / maxOf(spectrum.size, 1) * 360f
-    val baseLightness = 0.10f + bassLevel * 0.55f
-    val flashBoost = if (beatFlash > 0) 0.30f else 0f
-    val lightness = (baseLightness + flashBoost).coerceIn(0f, 1f)
-
-    val color = Color.hsl(
-        hue = hue,
-        saturation = 0.85f,
-        lightness = lightness,
-    )
+    val analysis = latestAnalysis
+    val color = if (analysis != null) {
+        settings.partyTheme.deriveColor(analysis, beatFlash)
+    } else {
+        Color.Black
+    }
 
     Box(
         modifier = Modifier

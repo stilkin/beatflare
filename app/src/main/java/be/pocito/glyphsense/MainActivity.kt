@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import be.pocito.glyphsense.model.PartyTheme
 import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.service.GlyphSenseService
 import be.pocito.glyphsense.ui.PartyOverlay
@@ -100,6 +101,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
     val context = LocalContext.current
+    val isNothingDevice = GlyphSenseService.isNothingDevice
+
+    // Load persisted settings on first composition (before service starts)
+    LaunchedEffect(Unit) {
+        GlyphSenseService.loadSettingsIfNeeded(context)
+    }
 
     // Permissions
     var micGranted by remember {
@@ -224,27 +231,20 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
             },
         )
 
-        // ── Party mode button ──
-        Button(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            enabled = isRunning,
-            onClick = onPartyMode,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = BeatFlareOrange,
-                contentColor = Color.White,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text("Party Mode", fontWeight = FontWeight.SemiBold)
+        // ── Glyph settings card (Nothing devices only) ──
+        if (isNothingDevice) {
+            GlyphSettingsCard(
+                settings = settings,
+                onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
+            )
         }
 
-        // ── Settings card ──
-        SettingsCard(
+        // ── Party card (theme selector + party mode button) ──
+        PartyCard(
             settings = settings,
             onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
+            isRunning = isRunning,
+            onPartyMode = onPartyMode,
         )
 
         // ── Debug (collapsed) ──
@@ -441,7 +441,7 @@ private fun GradientButton(
 // ─────────────────── Settings card ───────────────────
 
 @Composable
-private fun SettingsCard(
+private fun GlyphSettingsCard(
     settings: VisualizerSettings,
     onSettingsChange: (VisualizerSettings) -> Unit,
 ) {
@@ -455,12 +455,11 @@ private fun SettingsCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "Settings",
+                "Glyph Settings",
                 style = MaterialTheme.typography.titleSmall,
                 color = BeatFlareOnSurfaceDim,
             )
 
-            // Brightness
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -488,7 +487,6 @@ private fun SettingsCard(
                 )
             }
 
-            // Zone toggles
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -501,6 +499,97 @@ private fun SettingsCard(
                 }
                 ZoneToggle("Beat", settings.zoneBEnabled) {
                     onSettingsChange(settings.copy(zoneBEnabled = it))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartyCard(
+    settings: VisualizerSettings,
+    onSettingsChange: (VisualizerSettings) -> Unit,
+    isRunning: Boolean,
+    onPartyMode: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                "Party Mode",
+                style = MaterialTheme.typography.titleSmall,
+                color = BeatFlareOnSurfaceDim,
+            )
+
+            // Theme selector — two rows of three
+            ThemeSelector(
+                selected = settings.partyTheme,
+                onSelect = { onSettingsChange(settings.copy(partyTheme = it)) },
+            )
+
+            // Party mode button
+            Button(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                enabled = isRunning,
+                onClick = onPartyMode,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BeatFlareOrange,
+                    contentColor = Color.White,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("Launch Party Mode", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSelector(
+    selected: PartyTheme,
+    onSelect: (PartyTheme) -> Unit,
+) {
+    val themes = PartyTheme.entries
+    val rows = themes.chunked(3)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                row.forEach { theme ->
+                    val isSelected = theme == selected
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isSelected) BeatFlareMagenta.copy(alpha = 0.25f)
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                            )
+                            .clickable { onSelect(theme) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            theme.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isSelected) BeatFlareMagenta else BeatFlareOnSurfaceDim,
+                        )
+                    }
+                }
+                // Fill remaining space if row has fewer than 3 items
+                repeat(3 - row.size) {
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
