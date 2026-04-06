@@ -26,5 +26,5 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Visual check on device — all accent colors consistent
-- [ ] 5.2 Verify widget and notification match the new style
+- [x] 5.1 Visual check on device — all accent colors consistent
+- [x] 5.2 Verify widget and notification match the new style
