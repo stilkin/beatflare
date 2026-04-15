@@ -95,6 +95,14 @@ During development we validated on actual hardware:
 | LED count (Phone 3a) | 36 (C:20, A:11, B:5) |
 | Audio buffer latency | ~46ms (2048 samples @ 44.1 kHz) |
 
+## Support
+
+If you enjoy BeatFlare and want to support its development, consider buying me a drink:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/stilkin)
+
+Your support helps me continue developing and improving BeatFlare! ☕
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) -- free for personal and non-commercial use.
