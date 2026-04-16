@@ -16,7 +16,7 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
-
+!release/*.apk
 # IntelliJ / Android Studio
 .idea/
 *.ipr
