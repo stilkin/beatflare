@@ -2,6 +2,27 @@
 
 Developer reference for BeatFlare internals.
 
+## Building from Source
+
+```bash
+./gradlew :app:assembleDebug
+```
+
+The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
+
+Install with:
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Lint
+
+```bash
+./gradlew ktlintCheck                        # Check
+./gradlew ktlintFormat                       # Auto-fix
+./gradlew ktlintCheck :app:assembleDebug     # Lint + build
+```
+
 ## Tech Stack
 
 | Concern | Library / Tool |

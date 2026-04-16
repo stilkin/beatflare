@@ -19,14 +19,13 @@ The visualizer runs as a foreground service, so it keeps working when the screen
 
 ### Features
 
-- **Microphone-based** -- captures live ambient audio, not just on-device playback
-- **Adaptive normalization** -- automatically adjusts from quiet room to festival stage
-- **Per-LED brightness control** -- 12-bit (0-4095) per LED via the Glyph SDK
-- **Foreground service** -- survives screen lock and app backgrounding
+- **Live microphone input** -- reacts to ambient sound around you, not just on-device playback
+- **Adaptive volume** -- automatically adjusts from quiet room to festival stage
+- **Works with screen off** -- lock your phone and the glyphs keep going (saves battery)
 - **Brightness slider** -- adjust overall LED intensity
 - **Zone toggles** -- enable/disable spectrum, bass, and beat zones independently
 - **Party mode** -- full-screen front-of-phone color visualization synced to audio
-- **Notification control** -- start/stop from the persistent notification
+- **Notification control** -- start/stop without opening the app
 
 ## Supported Devices
 
@@ -40,23 +39,18 @@ The visualizer runs as a foreground service, so it keeps working when the screen
 | Nothing Phone (4a) | 6 | Yes | Yes |
 | Any Android 14+ device | -- | No | Yes |
 
-## Getting Started
+## Installation
 
-### Requirements
+1. Download [`beatflare.apk`](release/beatflare.apk) from this repository
+2. Transfer it to your phone and install (you may need to allow installs from unknown sources)
+3. Enable glyph debug mode by connecting your phone via USB and running:
+   ```
+   adb shell settings put global nt_glyph_interface_debug_enable 1
+   ```
+   *(this expires after 48 hours -- re-run as needed)*
+4. Open BeatFlare, grant microphone permission, and hit start
 
-- Android 14+ (API 34+)
-- For glyph visualization: a Nothing Phone with glyph debug mode enabled:
-  ```bash
-  adb shell settings put global nt_glyph_interface_debug_enable 1
-  ```
-  *(expires after 48 hours, re-run as needed)*
-
-### Building
-
-```bash
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
+> **Want to build from source?** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Support
 
