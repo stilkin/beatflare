@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,6 +11,14 @@ ktlint {
     outputToConsole.set(true)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties =
+    Properties().apply {
+        if (keystorePropertiesFile.exists()) {
+            keystorePropertiesFile.inputStream().use { load(it) }
+        }
+    }
+
 android {
     namespace = "be.pocito.glyphsense"
     compileSdk {
@@ -16,6 +26,18 @@ android {
             release(36) {
                 minorApiLevel = 1
             }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile =
+                keystoreProperties.getProperty("storeFile", "")
+                    .replaceFirst(Regex("^~"), System.getProperty("user.home"))
+                    .let(::file)
+            storePassword = keystoreProperties.getProperty("storePassword", "")
+            keyAlias = keystoreProperties.getProperty("keyAlias", "")
+            keyPassword = keystoreProperties.getProperty("keyPassword", "")
+        }
     }
 
     defaultConfig {
@@ -31,6 +53,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
