@@ -15,9 +15,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +48,10 @@ fun PartyOverlay(onDismiss: () -> Unit) {
 
     var latestAnalysis by remember { mutableStateOf<AudioAnalysis?>(null) }
     var beatFlash by remember { mutableIntStateOf(0) }
+    // Drives recomposition every frame so time-based effects (quiet pulse, Rainbow cycle,
+    // Breathe, Sweep) keep animating even when audio is silent and AudioAnalysis values
+    // are equal frame-to-frame.
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(isRunning) {
         if (!isRunning) return@LaunchedEffect
@@ -55,13 +61,19 @@ fun PartyOverlay(onDismiss: () -> Unit) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameMillis { nowMs = System.currentTimeMillis() }
+        }
+    }
+
     LaunchedEffect(isRunning) {
         if (!isRunning) onDismiss()
     }
 
     val analysis = latestAnalysis
     val color = if (analysis != null) {
-        settings.partyTheme.deriveColor(analysis, beatFlash)
+        settings.partyTheme.deriveColor(analysis, beatFlash, nowMs)
     } else {
         Color.Black
     }
