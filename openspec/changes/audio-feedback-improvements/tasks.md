@@ -37,8 +37,8 @@
 ## 7. Verification
 
 - [x] 7.1 Build and install: `./gradlew :app:assembleDebug` then `adb install -r ...`
-- [ ] 7.2 With music playing on phone speaker: each theme visibly reacts to audio
-- [ ] 7.3 With music paused (silence): every theme shows gentle baseline motion, not pitch black
-- [ ] 7.4 Strobe specifically: flashes on loud transients, dim pulse otherwise (no static black)
-- [ ] 7.5 Spectrum vs Rainbow: visibly distinct behavior (Spectrum tracks frequency content, Rainbow cycles)
+- [x] 7.2 With music playing on phone speaker: each theme visibly reacts to audio
+- [x] 7.3 With music paused (silence): every theme shows gentle baseline motion, not pitch black
+- [x] 7.4 Strobe specifically: flashes on loud transients, dim pulse otherwise (no static black)
+- [x] 7.5 Spectrum vs Rainbow: visibly distinct behavior (Spectrum tracks frequency content, Rainbow cycles)
 - [x] 7.6 ktlint passes: `./gradlew ktlintCheck`

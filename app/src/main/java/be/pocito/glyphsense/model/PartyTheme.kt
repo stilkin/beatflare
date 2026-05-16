@@ -119,7 +119,7 @@ enum class PartyTheme(val label: String) {
          * shows during quiet passages — prevents themes from sitting on pitch black.
          */
         fun quietPulse(nowMs: Long, audioLevel: Float): Float {
-            val phase = (nowMs % 2000L) / 2000f
+            val phase = (nowMs % 4000L) / 4000f
             val sine = 0.5f + 0.5f * sin(phase * 2f * PI.toFloat())
             return sine * (1f - audioLevel.coerceIn(0f, 1f))
         }
