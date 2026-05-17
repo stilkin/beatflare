@@ -16,4 +16,4 @@ The Monochrome theme SHALL render the screen in a user-configured color (default
 - **THEN** no color picker is shown
 
 - **WHEN** the user selects Mono
-- **THEN** a color picker (hue/saturation/value sliders) appears beneath the theme selector
+- **THEN** a hue + saturation picker (with a live preview swatch) appears beneath the theme selector. Brightness is intentionally audio-driven and not user-configurable.

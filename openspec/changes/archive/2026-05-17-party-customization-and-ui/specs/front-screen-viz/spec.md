@@ -1,30 +1,5 @@
 ## ADDED Requirements
 
-### Requirement: Full-screen color visualization
-The system SHALL provide a full-screen color visualization mode ("party mode") that fills the display with colors that shift and pulse in sync with the audio analysis data.
-
-#### Scenario: Party mode activated
-- **WHEN** the user starts the visualizer with the Party output enabled (or, on a non-Nothing device, simply taps Start)
-- **THEN** the screen fills with a color wash driven by the selected [PartyTheme]
-
-#### Scenario: Party mode deactivated
-- **WHEN** the user taps the overlay to exit, or presses system back
-- **THEN** the overlay closes and the tabbed main view is restored; the visualizer continues running if it was running
-
-### Requirement: Party mode is off by default
-The system SHALL start with the party overlay not visible. The front screen SHALL show the tabbed controls UI by default to conserve battery.
-
-#### Scenario: App launched
-- **WHEN** the app is first opened
-- **THEN** the screen shows the tabbed controls UI, not the full-screen visualization
-
-### Requirement: Screen-off glyph operation
-The system SHALL continue driving the glyph LEDs when the screen is off, as long as the foreground service is running.
-
-#### Scenario: Screen turned off during visualization
-- **WHEN** the user turns off the screen while the visualizer is running
-- **THEN** the glyph LEDs continue to visualize audio from the microphone
-
 ### Requirement: Optional centered character overlay
 The party mode overlay SHALL support an optional user-configured character or short text (emoji, letter, or short combination) rendered centered over the color wash. When configured, the text SHALL be rendered large enough to read at a distance — sized to approximately half the shorter screen dimension — and SHALL include a soft drop-shadow for legibility against bright backgrounds.
 

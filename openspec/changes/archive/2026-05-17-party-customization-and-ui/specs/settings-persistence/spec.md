@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Settings survive app restart
-The system SHALL persist all user settings to local storage. Persisted settings SHALL include: brightness, zone toggles, selected theme, custom Mono color, and party-overlay character. Settings SHALL be restored when the app or service starts.
+The system SHALL persist all user settings to local storage. Persisted settings SHALL include: brightness, zone toggles, selected theme, custom Mono color, party-overlay character, and the Glyphs / Party output toggles. Settings SHALL be restored when the app or service starts.
 
 #### Scenario: Brightness persists
 - **WHEN** the user sets brightness to 50% and force-kills the app
@@ -23,6 +23,10 @@ The system SHALL persist all user settings to local storage. Persisted settings 
 - **WHEN** the user sets a party-overlay emoji and restarts
 - **THEN** the same emoji is still configured after restart
 
+#### Scenario: Output toggles persist
+- **WHEN** the user turns off the Glyphs output toggle and restarts
+- **THEN** the Glyphs output toggle is still off after restart
+
 #### Scenario: Backwards-compatible defaults
-- **WHEN** the app is upgraded from a version that did not persist Mono color or overlay character
-- **THEN** Mono color defaults to white, overlay character defaults to empty, and no migration error occurs
+- **WHEN** the app is upgraded from a version that did not persist Mono color, overlay character, or output toggles
+- **THEN** Mono color defaults to white, overlay character defaults to empty, both output toggles default to enabled, and no migration error occurs
