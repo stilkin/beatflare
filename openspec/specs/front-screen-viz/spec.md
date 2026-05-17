@@ -29,15 +29,15 @@ The system SHALL continue driving the glyph LEDs when the screen is off, as long
 The party mode overlay SHALL support an optional user-configured character or short text (emoji, letter, or short combination) rendered centered over the color wash. When configured, the text SHALL be rendered large enough to read at a distance — sized to approximately half the shorter screen dimension — and SHALL include a soft drop-shadow for legibility against bright backgrounds.
 
 #### Scenario: No overlay configured
-- **WHEN** the user has not configured an overlay character
+- **WHEN** the user has not configured an overlay text
 - **THEN** the party mode overlay shows only the color wash, with the "Tap to exit" hint
 
 #### Scenario: Emoji overlay configured
-- **WHEN** the user configures "❤️" as the overlay character and launches party mode
+- **WHEN** the user configures "❤️" as the overlay text and launches party mode
 - **THEN** a large red heart is rendered centered over the color wash and remains legible across all themes
 
 #### Scenario: Overlay persists
-- **WHEN** the user sets an overlay character and restarts the app
+- **WHEN** the user sets an overlay text and restarts the app
 - **THEN** the same character remains configured
 
 #### Scenario: Multi-character overlay rotates to fit

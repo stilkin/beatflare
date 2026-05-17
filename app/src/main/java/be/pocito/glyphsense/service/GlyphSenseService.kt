@@ -153,13 +153,13 @@ class GlyphSenseService : Service() {
 
     private fun startPipeline() {
         if (pipelineJob != null) return // already running
-        // Only init the Glyph SDK session if the user actually wants glyph output.
-        if (_settings.value.glyphsOutputEnabled) {
-            controller?.init(
-                onReady = { Log.d(TAG, "Glyph session open") },
-                onError = { e -> Log.e(TAG, "Glyph init failed: $e") },
-            )
-        }
+        // Always init the Glyph SDK session on Nothing devices so the user can
+        // toggle Glyphs output on/off mid-run. The frame loop below still gates
+        // setFrameColors on the toggle, so no LEDs light up when disabled.
+        controller?.init(
+            onReady = { Log.d(TAG, "Glyph session open") },
+            onError = { e -> Log.e(TAG, "Glyph init failed: $e") },
+        )
         capture.start()
         if (!capture.isRunning()) {
             Log.e(TAG, "Mic capture failed to start")

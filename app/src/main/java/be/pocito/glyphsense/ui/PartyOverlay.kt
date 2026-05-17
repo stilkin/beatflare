@@ -69,9 +69,13 @@ fun PartyOverlay(onDismiss: () -> Unit) {
     // Breathe, Sweep) keep animating even when audio is silent and AudioAnalysis values
     // are equal frame-to-frame.
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // Avoids racing service startup: the overlay can be composed while isRunning is
+    // still false, so only honor an isRunning=false transition after we've seen true.
+    var hasSeenRunning by remember { mutableStateOf(false) }
 
     LaunchedEffect(isRunning) {
         if (!isRunning) return@LaunchedEffect
+        hasSeenRunning = true
         GlyphSenseService.analysisFlow.collect { analysis ->
             latestAnalysis = analysis
             beatFlash = if (analysis.beat) 4 else (beatFlash - 1).coerceAtLeast(0)
@@ -85,7 +89,7 @@ fun PartyOverlay(onDismiss: () -> Unit) {
     }
 
     LaunchedEffect(isRunning) {
-        if (!isRunning) onDismiss()
+        if (hasSeenRunning && !isRunning) onDismiss()
     }
 
     val analysis = latestAnalysis

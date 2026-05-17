@@ -27,8 +27,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.pocito.glyphsense.ui.theme.BeatFlareMagenta
 import be.pocito.glyphsense.ui.theme.BeatFlareOnSurfaceDim
+import java.text.BreakIterator
+import java.util.Locale
 
 private val EMOJI_PRESETS = listOf("❤️", "🦄", "⭐", "🔥", "🌊", "🎵", "✨", "💔")
+
+/** Take the first [n] grapheme clusters of a string. Composed emoji stay intact. */
+private fun String.takeGraphemes(n: Int): String {
+    if (isEmpty() || n <= 0) return ""
+    val it = BreakIterator.getCharacterInstance(Locale.ROOT)
+    it.setText(this)
+    var taken = 0
+    var end = it.next()
+    while (end != BreakIterator.DONE && taken < n) {
+        taken++
+        if (taken == n) return substring(0, end)
+        end = it.next()
+    }
+    return this
+}
 
 /**
  * Lets the user pick (or clear) a single character/emoji shown centered on the
@@ -70,8 +87,9 @@ fun EmojiOverlaySettings(
 
         OutlinedTextField(
             value = current,
-            // 4 UTF-16 chars fits a single emoji (incl. flags = 4) or up to ~4 letters.
-            onValueChange = { onChange(it.take(4)) },
+            // Cap at 2 graphemes (user-perceived chars). Grapheme-aware so a
+            // composed family emoji or country flag isn't sliced into broken bytes.
+            onValueChange = { onChange(it.takeGraphemes(2)) },
             singleLine = true,
             placeholder = { Text("Custom (emoji or letter)", color = BeatFlareOnSurfaceDim) },
             keyboardOptions = KeyboardOptions(
