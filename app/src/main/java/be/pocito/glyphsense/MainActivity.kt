@@ -10,13 +10,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +33,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -47,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,20 +61,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import be.pocito.glyphsense.model.PartyTheme
 import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.service.GlyphSenseService
+import be.pocito.glyphsense.ui.EmojiOverlaySettings
+import be.pocito.glyphsense.ui.MonoColorPicker
 import be.pocito.glyphsense.ui.PartyOverlay
 import be.pocito.glyphsense.ui.theme.BeatFlareMagenta
 import be.pocito.glyphsense.ui.theme.BeatFlareOnSurfaceDim
 import be.pocito.glyphsense.ui.theme.BeatFlareOrange
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
 import kotlin.math.roundToInt
+
+private enum class Tab { Play, Party, Glyphs }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,15 +88,11 @@ class MainActivity : ComponentActivity() {
             GlyphSenseTheme {
                 var partyMode by remember { mutableStateOf(false) }
                 Box(Modifier.fillMaxSize()) {
-                    Scaffold(
-                        modifier = Modifier.fillMaxSize(),
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ) { innerPadding ->
-                        MainScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            onPartyMode = { partyMode = true },
-                        )
-                    }
+                    MainScreen(
+                        partyMode = partyMode,
+                        onLaunchParty = { partyMode = true },
+                        onStopParty = { partyMode = false },
+                    )
                     if (partyMode) {
                         PartyOverlay(onDismiss = { partyMode = false })
                     }
@@ -99,42 +103,125 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
+fun MainScreen(
+    partyMode: Boolean = false,
+    onLaunchParty: () -> Unit = {},
+    onStopParty: () -> Unit = {},
+) {
     val context = LocalContext.current
     val isNothingDevice = GlyphSenseService.isNothingDevice
 
-    // Load persisted settings on first composition (before service starts)
-    LaunchedEffect(Unit) {
-        GlyphSenseService.loadSettingsIfNeeded(context)
+    LaunchedEffect(Unit) { GlyphSenseService.loadSettingsIfNeeded(context) }
+
+    var selectedTab by rememberSaveable { mutableStateOf(Tab.Play) }
+    // Glyphs tab disappears on non-Nothing devices — fall back gracefully.
+    if (selectedTab == Tab.Glyphs && !isNothingDevice) selectedTab = Tab.Play
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            BottomNav(
+                selected = selectedTab,
+                showGlyphs = isNothingDevice,
+                onSelect = { selectedTab = it },
+            )
+        },
+    ) { innerPadding ->
+        val tabModifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+        when (selectedTab) {
+            Tab.Play -> PlayTab(
+                modifier = tabModifier,
+                isNothingDevice = isNothingDevice,
+                onLaunchParty = onLaunchParty,
+                onStopParty = onStopParty,
+            )
+            Tab.Party -> PartyTab(tabModifier)
+            Tab.Glyphs -> GlyphsTab(tabModifier)
+        }
     }
+}
+
+// ─────────────────── Bottom navigation ───────────────────
+
+@Composable
+private fun BottomNav(selected: Tab, showGlyphs: Boolean, onSelect: (Tab) -> Unit) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        NavigationBarItem(
+            selected = selected == Tab.Play,
+            onClick = { onSelect(Tab.Play) },
+            icon = { Text("▶", fontSize = 18.sp) },
+            label = { Text("Play") },
+            colors = navColors(),
+        )
+        NavigationBarItem(
+            selected = selected == Tab.Party,
+            onClick = { onSelect(Tab.Party) },
+            icon = { Text("✦", fontSize = 20.sp) },
+            label = { Text("Party") },
+            colors = navColors(),
+        )
+        if (showGlyphs) {
+            NavigationBarItem(
+                selected = selected == Tab.Glyphs,
+                onClick = { onSelect(Tab.Glyphs) },
+                icon = { Text("✱", fontSize = 20.sp) },
+                label = { Text("Glyphs") },
+                colors = navColors(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun navColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = Color.White,
+    selectedTextColor = BeatFlareMagenta,
+    indicatorColor = BeatFlareMagenta,
+    unselectedIconColor = BeatFlareOnSurfaceDim,
+    unselectedTextColor = BeatFlareOnSurfaceDim,
+)
+
+// ─────────────────── Tabs ───────────────────
+
+@Composable
+private fun PlayTab(
+    modifier: Modifier,
+    isNothingDevice: Boolean,
+    onLaunchParty: () -> Unit,
+    onStopParty: () -> Unit,
+) {
+    val context = LocalContext.current
+    val isRunning by GlyphSenseService.isRunning.collectAsState()
+    val settings by GlyphSenseService.settings.collectAsState()
 
     // Permissions
     var micGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
-                context, Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
+                context, Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED,
         )
     }
     var notifGranted by remember {
         mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS
+                    context, Manifest.permission.POST_NOTIFICATIONS,
                 ) == PackageManager.PERMISSION_GRANTED
-            else true
+            } else {
+                true
+            },
         )
     }
     val micLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { micGranted = it }
     val notifLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { notifGranted = it }
-
-    // Service state
-    val isRunning by GlyphSenseService.isRunning.collectAsState()
-    val settings by GlyphSenseService.settings.collectAsState()
 
     // Live analysis
     var bassLevel by remember { mutableStateOf(0f) }
@@ -160,47 +247,26 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
     }
 
     val canStart = micGranted && notifGranted
+    // On non-Nothing devices party mode is the only possible output; settings UI is hidden.
+    val partyOnTap = if (isNothingDevice) settings.partyOutputEnabled else true
 
     Column(
         modifier = modifier
-            .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // ── Header ──
-        Spacer(Modifier.height(8.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Image(
-                painter = painterResource(R.mipmap.ic_launcher),
-                contentDescription = "BeatFlare",
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "BeatFlare",
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.sp,
-                ),
-                color = BeatFlareOnSurfaceDim,
-            )
-            Spacer(Modifier.height(4.dp))
-            StatusDot(isRunning)
-        }
+        Header(isRunning)
 
-        // ── Visualizer card (hero) ──
         VisualizerCard(
             spectrum = spectrum,
             bassLevel = bassLevel,
             beatFlash = beatFlash,
             isRunning = isRunning,
+            // Tap to (re-)launch the party overlay while running, if that output is enabled.
+            onTap = if (isRunning && partyOnTap) onLaunchParty else null,
         )
 
-        // ── Permissions (only if needed) ──
         if (!micGranted) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
@@ -220,34 +286,42 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
             ) { Text("Grant notification permission") }
         }
 
-        // ── Start / Stop button ──
+        // Output toggles — only meaningful on Nothing devices (where Glyphs is an option).
+        if (isNothingDevice) {
+            OutputToggles(
+                glyphsEnabled = settings.glyphsOutputEnabled,
+                partyEnabled = settings.partyOutputEnabled,
+                onGlyphs = { newG ->
+                    // Never let both toggles be off — auto-flip the other.
+                    val newP = if (!newG && !settings.partyOutputEnabled) true else settings.partyOutputEnabled
+                    GlyphSenseService.updateSettings {
+                        it.copy(glyphsOutputEnabled = newG, partyOutputEnabled = newP)
+                    }
+                },
+                onParty = { newP ->
+                    val newG = if (!newP && !settings.glyphsOutputEnabled) true else settings.glyphsOutputEnabled
+                    GlyphSenseService.updateSettings {
+                        it.copy(glyphsOutputEnabled = newG, partyOutputEnabled = newP)
+                    }
+                },
+            )
+        }
+
         GradientButton(
             text = if (isRunning) "Stop Visualizer" else "Start Visualizer",
             enabled = canStart,
             isActive = isRunning,
             onClick = {
-                if (isRunning) context.startService(GlyphSenseService.intentStop(context))
-                else context.startForegroundService(GlyphSenseService.intentStart(context))
+                if (isRunning) {
+                    onStopParty()
+                    context.startService(GlyphSenseService.intentStop(context))
+                } else {
+                    context.startForegroundService(GlyphSenseService.intentStart(context))
+                    if (partyOnTap) onLaunchParty()
+                }
             },
         )
 
-        // ── Glyph settings card (Nothing devices only) ──
-        if (isNothingDevice) {
-            GlyphSettingsCard(
-                settings = settings,
-                onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
-            )
-        }
-
-        // ── Party card (theme selector + party mode button) ──
-        PartyCard(
-            settings = settings,
-            onSettingsChange = { new -> GlyphSenseService.updateSettings { new } },
-            isRunning = isRunning,
-            onPartyMode = onPartyMode,
-        )
-
-        // ── Debug (collapsed) ──
         if (isRunning) {
             DebugSection(bassRaw, bassFloor, bassPeak)
         }
@@ -262,7 +336,212 @@ fun MainScreen(modifier: Modifier = Modifier, onPartyMode: () -> Unit = {}) {
     }
 }
 
-// ─────────────────── Status dot ───────────────────
+@Composable
+private fun OutputToggles(
+    glyphsEnabled: Boolean,
+    partyEnabled: Boolean,
+    onGlyphs: (Boolean) -> Unit,
+    onParty: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            ToggleRow("Glyphs", glyphsEnabled, onGlyphs)
+            ToggleRow("Party mode", partyEnabled, onParty)
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = BeatFlareMagenta,
+                uncheckedThumbColor = BeatFlareOnSurfaceDim,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun PartyTab(modifier: Modifier) {
+    val settings by GlyphSenseService.settings.collectAsState()
+
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Theme",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BeatFlareOnSurfaceDim,
+                )
+                ThemeSelector(
+                    selected = settings.partyTheme,
+                    onSelect = { t ->
+                        GlyphSenseService.updateSettings { it.copy(partyTheme = t) }
+                    },
+                )
+                if (settings.partyTheme == PartyTheme.MONOCHROME) {
+                    MonoColorPicker(
+                        color = settings.monoColor,
+                        onColorChange = { c ->
+                            GlyphSenseService.updateSettings { it.copy(monoColor = c) }
+                        },
+                    )
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                EmojiOverlaySettings(
+                    current = settings.partyOverlayText,
+                    onChange = { txt ->
+                        GlyphSenseService.updateSettings { it.copy(partyOverlayText = txt) }
+                    },
+                )
+            }
+        }
+
+    }
+}
+
+@Composable
+private fun GlyphsTab(modifier: Modifier) {
+    val settings by GlyphSenseService.settings.collectAsState()
+
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "Glyph Settings",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BeatFlareOnSurfaceDim,
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Brightness",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.width(90.dp),
+                    )
+                    Slider(
+                        value = settings.brightness,
+                        onValueChange = { v ->
+                            GlyphSenseService.updateSettings { it.copy(brightness = v) }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = BeatFlareMagenta,
+                            activeTrackColor = BeatFlareMagenta,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    )
+                    Text(
+                        "${(settings.brightness * 100).roundToInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BeatFlareOnSurfaceDim,
+                        modifier = Modifier.width(36.dp),
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    ZoneToggle("Spectrum", settings.zoneCEnabled) { v ->
+                        GlyphSenseService.updateSettings { it.copy(zoneCEnabled = v) }
+                    }
+                    ZoneToggle("Bass", settings.zoneAEnabled) { v ->
+                        GlyphSenseService.updateSettings { it.copy(zoneAEnabled = v) }
+                    }
+                    ZoneToggle("Beat", settings.zoneBEnabled) { v ->
+                        GlyphSenseService.updateSettings { it.copy(zoneBEnabled = v) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────── Header + status ───────────────────
+
+@Composable
+private fun Header(isRunning: Boolean) {
+    Spacer(Modifier.height(8.dp))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_foreground),
+            contentDescription = "BeatFlare",
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "BeatFlare",
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp,
+            ),
+            color = BeatFlareOnSurfaceDim,
+        )
+        Spacer(Modifier.height(4.dp))
+        StatusDot(isRunning)
+    }
+}
 
 @Composable
 private fun StatusDot(isRunning: Boolean) {
@@ -291,11 +570,14 @@ private fun VisualizerCard(
     bassLevel: Float,
     beatFlash: Int,
     isRunning: Boolean,
+    onTap: (() -> Unit)? = null,
 ) {
     val beatAlpha = if (beatFlash > 0) 0.15f else 0f
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
     ) {
@@ -303,15 +585,17 @@ private fun VisualizerCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (beatAlpha > 0f) Modifier.background(BeatFlareOrange.copy(alpha = beatAlpha))
-                    else Modifier
+                    if (beatAlpha > 0f) {
+                        Modifier.background(BeatFlareOrange.copy(alpha = beatAlpha))
+                    } else {
+                        Modifier
+                    },
                 ),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Spectrum bars — the hero
                 GradientSpectrumBars(
                     values = spectrum,
                     modifier = Modifier
@@ -319,7 +603,6 @@ private fun VisualizerCard(
                         .height(120.dp),
                 )
 
-                // Bass bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -344,8 +627,8 @@ private fun VisualizerCard(
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(BeatFlareMagenta, BeatFlareOrange)
-                                    )
+                                        listOf(BeatFlareMagenta, BeatFlareOrange),
+                                    ),
                                 ),
                         )
                     }
@@ -382,7 +665,6 @@ private fun GradientSpectrumBars(values: FloatArray, modifier: Modifier = Modifi
             val barH = h * v
             if (barH < 1f) continue
 
-            // Gradient color: magenta (left) → orange (right)
             val fraction = i.toFloat() / (values.size - 1).coerceAtLeast(1)
             val barColor = lerp(magenta, orange, fraction)
 
@@ -407,8 +689,11 @@ private fun GradientButton(
 ) {
     if (enabled) {
         val gradient = Brush.horizontalGradient(
-            if (isActive) listOf(BeatFlareMagenta, BeatFlareOrange)
-            else listOf(BeatFlareMagenta.copy(alpha = 0.8f), BeatFlareOrange.copy(alpha = 0.8f))
+            if (isActive) {
+                listOf(BeatFlareMagenta, BeatFlareOrange)
+            } else {
+                listOf(BeatFlareMagenta.copy(alpha = 0.8f), BeatFlareOrange.copy(alpha = 0.8f))
+            },
         )
         Box(
             modifier = Modifier
@@ -438,126 +723,10 @@ private fun GradientButton(
     }
 }
 
-// ─────────────────── Settings card ───────────────────
+// ─────────────────── Theme selector ───────────────────
 
 @Composable
-private fun GlyphSettingsCard(
-    settings: VisualizerSettings,
-    onSettingsChange: (VisualizerSettings) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "Glyph Settings",
-                style = MaterialTheme.typography.titleSmall,
-                color = BeatFlareOnSurfaceDim,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Brightness",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.width(90.dp),
-                )
-                Slider(
-                    value = settings.brightness,
-                    onValueChange = { onSettingsChange(settings.copy(brightness = it)) },
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = BeatFlareMagenta,
-                        activeTrackColor = BeatFlareMagenta,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-                )
-                Text(
-                    "${(settings.brightness * 100).roundToInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BeatFlareOnSurfaceDim,
-                    modifier = Modifier.width(36.dp),
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                ZoneToggle("Spectrum", settings.zoneCEnabled) {
-                    onSettingsChange(settings.copy(zoneCEnabled = it))
-                }
-                ZoneToggle("Bass", settings.zoneAEnabled) {
-                    onSettingsChange(settings.copy(zoneAEnabled = it))
-                }
-                ZoneToggle("Beat", settings.zoneBEnabled) {
-                    onSettingsChange(settings.copy(zoneBEnabled = it))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PartyCard(
-    settings: VisualizerSettings,
-    onSettingsChange: (VisualizerSettings) -> Unit,
-    isRunning: Boolean,
-    onPartyMode: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                "Party Mode",
-                style = MaterialTheme.typography.titleSmall,
-                color = BeatFlareOnSurfaceDim,
-            )
-
-            // Theme selector — two rows of three
-            ThemeSelector(
-                selected = settings.partyTheme,
-                onSelect = { onSettingsChange(settings.copy(partyTheme = it)) },
-            )
-
-            // Party mode button
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                enabled = isRunning,
-                onClick = onPartyMode,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BeatFlareOrange,
-                    contentColor = Color.White,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Text("Launch Party Mode", fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeSelector(
-    selected: PartyTheme,
-    onSelect: (PartyTheme) -> Unit,
-) {
+private fun ThemeSelector(selected: PartyTheme, onSelect: (PartyTheme) -> Unit) {
     val themes = PartyTheme.entries
     val rows = themes.chunked(3)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -573,8 +742,11 @@ private fun ThemeSelector(
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(
-                                if (isSelected) BeatFlareMagenta.copy(alpha = 0.25f)
-                                else MaterialTheme.colorScheme.surfaceVariant,
+                                if (isSelected) {
+                                    BeatFlareMagenta.copy(alpha = 0.25f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
                             )
                             .clickable { onSelect(theme) }
                             .padding(vertical = 10.dp),
@@ -587,10 +759,7 @@ private fun ThemeSelector(
                         )
                     }
                 }
-                // Fill remaining space if row has fewer than 3 items
-                repeat(3 - row.size) {
-                    Spacer(Modifier.weight(1f))
-                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -617,7 +786,7 @@ private fun ZoneToggle(label: String, enabled: Boolean, onToggle: (Boolean) -> U
     }
 }
 
-// ─────────────────── Debug section ───────────────────
+// ─────────────────── Debug ───────────────────
 
 @Composable
 private fun DebugSection(bassRaw: Float, bassFloor: Float, bassPeak: Float) {

@@ -153,10 +153,13 @@ class GlyphSenseService : Service() {
 
     private fun startPipeline() {
         if (pipelineJob != null) return // already running
-        controller?.init(
-            onReady = { Log.d(TAG, "Glyph session open") },
-            onError = { e -> Log.e(TAG, "Glyph init failed: $e") },
-        )
+        // Only init the Glyph SDK session if the user actually wants glyph output.
+        if (_settings.value.glyphsOutputEnabled) {
+            controller?.init(
+                onReady = { Log.d(TAG, "Glyph session open") },
+                onError = { e -> Log.e(TAG, "Glyph init failed: $e") },
+            )
+        }
         capture.start()
         if (!capture.isRunning()) {
             Log.e(TAG, "Mic capture failed to start")
@@ -170,7 +173,9 @@ class GlyphSenseService : Service() {
                 capture.buffers.collect { buf ->
                     val analysis = analyzer.process(buf)
                     _analysisFlow.tryEmit(analysis)
-                    controller?.setFrameColors(driver.render(analysis, _settings.value))
+                    if (_settings.value.glyphsOutputEnabled) {
+                        controller?.setFrameColors(driver.render(analysis, _settings.value))
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "pipeline error: ${e.message}", e)
@@ -228,7 +233,7 @@ class GlyphSenseService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("BeatFlare")
             .setContentText("Visualizing audio on glyphs")
             .setPriority(NotificationCompat.PRIORITY_LOW)
