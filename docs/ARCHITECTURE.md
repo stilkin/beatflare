@@ -47,19 +47,32 @@ app/src/main/java/be/pocito/glyphsense/
     BeatDetector.kt          Energy-based beat detection
     RollingPeakNormalizer.kt Adaptive normalization with noise floor
   glyph/
-    GlyphController.kt      Wraps Nothing GlyphManager lifecycle
-    GlyphDriver.kt          Maps AudioAnalysis -> LED values via DeviceProfile
+    GlyphController.kt       Wraps Nothing GlyphManager lifecycle
+    GlyphDriver.kt           Maps AudioAnalysis -> LED values via DeviceProfile
   model/
-    DeviceProfile.kt        Per-device LED zone configuration
-    PartyTheme.kt           Color themes for party mode
-    SettingsStore.kt        SharedPreferences persistence
-    VisualizerSettings.kt   Runtime settings (brightness, zones, theme)
+    DeviceProfile.kt         Per-device LED zone configuration
+    PartyTheme.kt            8 color themes + ThemeContext data class
+    SettingsStore.kt         SharedPreferences persistence
+    VisualizerSettings.kt    Runtime settings (brightness, zones, theme, mono color, overlay text, output toggles)
   service/
-    GlyphSenseService.kt    Foreground service owning the pipeline
+    GlyphSenseService.kt     Foreground service owning the pipeline
   ui/
-    PartyOverlay.kt          Full-screen color visualization
-  MainActivity.kt            Main UI
+    PartyOverlay.kt          Full-screen color visualization with find-me overlay
+    MonoColorPicker.kt       Hue + saturation picker for the Mono theme
+    EmojiOverlaySettings.kt  Preset row + text field for the find-me overlay
+    theme/                   Material 3 colour scheme and typography
+  widget/
+    GlyphSenseWidget.kt      Home-screen widget (toggle start/stop)
+  MainActivity.kt            Bottom-nav tabbed UI (Play / Party / Glyphs)
 ```
+
+### ThemeContext
+
+`PartyTheme.deriveColor(ctx: ThemeContext)` takes a single `ThemeContext(analysis, beatFlash, nowMs, settings)`. Bundling the inputs means new dependencies (e.g. `settings.monoColor`) can be added without changing every theme's signature. Themes that don't need a field just ignore it.
+
+### Find-me overlay
+
+`PartyOverlay` renders an optional user-configured character or short text centered over the colour wash. Single-grapheme strings stay upright; multi-grapheme strings rotate 90° CCW so they read along the screen's long axis. Font size is auto-fit via Compose `TextMeasurer` -- the text is measured at a reference size, then scaled so it fills ~85% of the available axis. This handles the width asymmetry between emoji (~1 em) and letters (~0.6 em) without per-character heuristics. Font is bundled `Bungee Shade` (in `res/font/`).
 
 ## Audio Pipeline
 
