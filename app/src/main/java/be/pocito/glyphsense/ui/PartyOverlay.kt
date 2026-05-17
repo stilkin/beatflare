@@ -30,9 +30,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.pocito.glyphsense.R
@@ -101,10 +103,31 @@ fun PartyOverlay(onDismiss: () -> Unit) {
 
     val overlayText = settings.partyOverlayText
     val cfg = LocalConfiguration.current
-    val overlaySizeSp = (minOf(cfg.screenWidthDp, cfg.screenHeightDp) * 0.55f).sp
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
     // Rotate multi-symbol overlays CCW so each glyph stays large and they all fit
     // along the screen's long axis ("HI<3", "JD", etc. read bottom-to-top).
     val rotate = overlayText.isNotEmpty() && graphemeCount(overlayText) > 1
+    // Auto-fit: measure the text at a reference size, then scale so it fits ~85%
+    // of the available axis. Naturally handles emoji-vs-letter width asymmetry
+    // without heuristics.
+    val overlaySizeSp = remember(overlayText, rotate, cfg.screenWidthDp, cfg.screenHeightDp) {
+        if (overlayText.isEmpty()) {
+            0.sp
+        } else {
+            val refSize = 100.sp
+            val layout = measurer.measure(
+                overlayText,
+                TextStyle(fontFamily = BungeeShade, fontSize = refSize),
+            )
+            val mWdp = with(density) { layout.size.width.toDp().value }
+            val mHdp = with(density) { layout.size.height.toDp().value }
+            val targetW = (if (rotate) cfg.screenHeightDp else cfg.screenWidthDp) * 0.85f
+            val targetH = (if (rotate) cfg.screenWidthDp else cfg.screenHeightDp) * 0.85f
+            val scale = minOf(targetW / mWdp, targetH / mHdp)
+            (refSize.value * scale).sp
+        }
+    }
 
     Box(
         modifier = Modifier
