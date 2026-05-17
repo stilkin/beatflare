@@ -1,25 +1,38 @@
 ## ADDED Requirements
 
 ### Requirement: Custom app icon
-The system SHALL use a custom adaptive icon with a distinct foreground graphic and colored background. The icon SHALL be provided as Android vector drawables.
+The system SHALL use a custom adaptive icon with separate vector foreground and background layers. The icon SHALL be a flat-design rendering (no photorealistic shading) so it can be expressed entirely as Android VectorDrawable XML. Raster mipmap variants SHALL NOT be used.
 
 #### Scenario: Icon visible on home screen
 - **WHEN** the app is installed
-- **THEN** the home screen shows the custom icon, not the default Android icon
+- **THEN** the home screen shows the custom adaptive icon, rendered from vector layers
+
+#### Scenario: Icon adapts to launcher masks
+- **WHEN** the launcher applies a round, squircle, or rectangular mask
+- **THEN** the icon background fills the mask shape cleanly and the foreground bars remain centered and visible
 
 ### Requirement: Accent color palette
-The system SHALL define a primary and secondary accent color derived from the app icon. These colors SHALL be applied consistently to: start/stop button, spectrum bars, beat indicator, slider track, party mode button, widget running state, and notification icon tint.
+The system SHALL define a primary and secondary accent color derived from the app icon. These colors SHALL be applied consistently to: start/stop button, spectrum bars, beat indicator, slider track, widget running state, and notification icon tint.
 
 #### Scenario: Accent colors applied
 - **WHEN** the user opens the app
 - **THEN** interactive elements use the accent palette instead of default Material white
 
-### Requirement: Card-based layout
-The main activity SHALL group related controls into visually distinct cards with slight elevation over the background. Settings, visualization, and actions SHALL each be in separate cards.
+### Requirement: Card-based tabbed layout
+The main activity SHALL organize controls into bottom-navigation tabs rather than a single scrollable column. Each tab SHALL group related controls into cards with subtle elevation over the background.
 
-#### Scenario: Settings grouped in card
-- **WHEN** the user views the main screen
-- **THEN** brightness slider, zone toggles, and theme selector are grouped in a single card with a subtle background
+#### Scenario: Tab navigation
+- **WHEN** the user opens the app
+- **THEN** a bottom navigation bar shows Play, Party, and (on Nothing devices) Glyphs tabs
+- **AND** the Play tab is selected by default
+
+#### Scenario: Tab persists across rotation
+- **WHEN** the user selects the Party tab and rotates the device
+- **THEN** the Party tab remains selected
+
+#### Scenario: Glyphs tab hidden on non-Nothing devices
+- **WHEN** the app runs on a non-Nothing Android device
+- **THEN** the bottom navigation shows only Play and Party tabs
 
 ### Requirement: Debug info collapsed by default
 The analysis debug values (raw, floor, peak log numbers) SHALL be hidden by default behind a collapsible toggle. The spectrum bars and beat indicator SHALL remain visible.
@@ -31,6 +44,13 @@ The analysis debug values (raw, floor, peak log numbers) SHALL be hidden by defa
 #### Scenario: Debug values shown
 - **WHEN** the user expands the debug section
 - **THEN** the raw/floor/peak log values become visible
+
+### Requirement: Dedicated notification small icon
+The system SHALL provide a dedicated monochrome vector drawable for the foreground service notification's small icon. The icon SHALL be white on transparent background, following Android's small-icon masking conventions.
+
+#### Scenario: Notification renders recognizable icon
+- **WHEN** the visualizer is running and the foreground notification is visible
+- **THEN** the status bar shows a recognizable BeatFlare silhouette, not a generic white blob
 
 ## MODIFIED Requirements
 

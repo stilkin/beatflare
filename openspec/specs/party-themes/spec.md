@@ -11,12 +11,16 @@ The system SHALL provide multiple color themes for the front-screen party mode v
 - **WHEN** the user selects "Ocean" and restarts the app
 - **THEN** the "Ocean" theme is still selected
 
-### Requirement: Six built-in themes
-The system SHALL include these themes: Spectrum (default), Fire, Ocean, Monochrome, Rainbow, Strobe. Each theme SHALL map AudioAnalysis data to a Color using a different strategy.
+### Requirement: Built-in themes
+The system SHALL include these themes: Spectrum (default), Fire, Ocean, Monochrome, Rainbow, Strobe, Breathe, Sweep. Each theme SHALL map AudioAnalysis data and a wall-clock time value to a Color using a different strategy.
 
-#### Scenario: Spectrum theme (default)
-- **WHEN** the Spectrum theme is active
-- **THEN** hue shifts based on the dominant frequency band, brightness pulses with bass
+#### Scenario: Spectrum theme tracks frequency content
+- **WHEN** the Spectrum theme is active and audio is playing
+- **THEN** hue tracks a smoothed frequency centroid (low frequencies → red/orange, high frequencies → blue/violet) and brightness pulses with bass
+
+#### Scenario: Spectrum theme does not flicker on transient noise
+- **WHEN** the Spectrum theme is active and a sharp transient occurs in a single FFT band
+- **THEN** the hue shifts smoothly toward the new dominant frequency rather than jumping discontinuously
 
 #### Scenario: Fire theme
 - **WHEN** the Fire theme is active
@@ -28,12 +32,46 @@ The system SHALL include these themes: Spectrum (default), Fire, Ocean, Monochro
 
 #### Scenario: Monochrome theme
 - **WHEN** the Monochrome theme is active
-- **THEN** screen is white only, overall amplitude drives brightness from black to white
+- **THEN** screen renders a single user-configurable colour (default white) with brightness modulated by bass and the quiet-state baseline pulse
 
-#### Scenario: Rainbow theme
+#### Scenario: Custom mono color persists
+- **WHEN** the user picks a magenta color for Mono and restarts the app
+- **THEN** the Mono theme continues to use the chosen magenta color
+
+#### Scenario: Color picker only visible when Mono is selected
+- **WHEN** the user is on the Party tab and Mono is not the selected theme
+- **THEN** no color picker is shown
+
+- **WHEN** the user selects Mono
+- **THEN** a hue + saturation picker (with a live preview swatch) appears beneath the theme selector. Brightness is intentionally audio-driven and not user-configurable.
+
+#### Scenario: Rainbow theme cycles continuously
 - **WHEN** the Rainbow theme is active
-- **THEN** hue cycles continuously over time, beat detection resets the cycle position
+- **THEN** hue cycles continuously as a function of wall-clock time, and brightness is modulated by bass; beats do NOT reset the cycle position
 
-#### Scenario: Strobe theme
-- **WHEN** the Strobe theme is active
-- **THEN** screen alternates between black and white only on detected beats
+#### Scenario: Strobe theme flashes on transients
+- **WHEN** the Strobe theme is active and a transient is detected (beat OR bass level above threshold)
+- **THEN** the screen flashes high-contrast white
+
+#### Scenario: Strobe theme remains alive during quiet passages
+- **WHEN** the Strobe theme is active and no transient has fired for at least 500 ms
+- **THEN** the screen shows a dim white pulse driven by bass and a baseline pulse, not solid black
+
+#### Scenario: Breathe theme
+- **WHEN** the Breathe theme is active
+- **THEN** the screen shows a fixed-hue color with a slow sine-wave brightness modulation; bass amplitude additively increases brightness
+
+#### Scenario: Sweep theme
+- **WHEN** the Sweep theme is active
+- **THEN** the hue rotates slowly over time within a narrow range (cool hues), and bass amplitude drives saturation
+
+### Requirement: Quiet-state baseline pulse
+Every theme SHALL show some visible motion at all times, even when no audio is detected. When audio energy is near zero, themes SHALL render a low-amplitude pulse driven by a wall-clock sine wave so the screen never appears frozen or pitch black.
+
+#### Scenario: No audio input
+- **WHEN** the visualizer is running and the microphone picks up no significant audio for several seconds
+- **THEN** the active theme renders a slow, low-brightness pulse (~5–15% peak brightness) rather than a static dark screen
+
+#### Scenario: Audio resumes
+- **WHEN** audio energy rises back above the noise floor after a quiet passage
+- **THEN** the baseline pulse fades out and full audio-driven visualization resumes
