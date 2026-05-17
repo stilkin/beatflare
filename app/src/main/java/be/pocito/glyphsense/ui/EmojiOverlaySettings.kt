@@ -87,9 +87,9 @@ fun EmojiOverlaySettings(
 
         OutlinedTextField(
             value = current,
-            // Cap at 2 graphemes (user-perceived chars). Grapheme-aware so a
+            // Cap at 4 graphemes (user-perceived chars). Grapheme-aware so a
             // composed family emoji or country flag isn't sliced into broken bytes.
-            onValueChange = { onChange(it.takeGraphemes(2)) },
+            onValueChange = { onChange(it.takeGraphemes(4)) },
             singleLine = true,
             placeholder = { Text("Custom (emoji or letter)", color = BeatFlareOnSurfaceDim) },
             keyboardOptions = KeyboardOptions(
