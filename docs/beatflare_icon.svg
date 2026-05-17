@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="128" height="128">
+  <defs>
+    <linearGradient id="bar1" x1="36" y1="48" x2="36" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E91E8C"/>
+      <stop offset="1" stop-color="#F4811E"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="54" y1="26" x2="54" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E91E8C"/>
+      <stop offset="1" stop-color="#F4811E"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="72" y1="40" x2="72" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E91E8C"/>
+      <stop offset="1" stop-color="#F4811E"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" rx="24" ry="24" fill="#0D0D0D"/>
+  <path fill="#2C2C2E" d="M32,18 L76,18 Q90,18 90,32 L90,76 Q90,90 76,90 L32,90 Q18,90 18,76 L18,32 Q18,18 32,18 Z"/>
+  <path fill="url(#bar1)" d="M32,48 L40,48 Q42,48 42,50 L42,80 Q42,82 40,82 L32,82 Q30,82 30,80 L30,50 Q30,48 32,48 Z"/>
+  <path fill="url(#bar2)" d="M50,26 L58,26 Q60,26 60,28 L60,80 Q60,82 58,82 L50,82 Q48,82 48,80 L48,28 Q48,26 50,26 Z"/>
+  <path fill="url(#bar3)" d="M68,40 L76,40 Q78,40 78,42 L78,80 Q78,82 76,82 L68,82 Q66,82 66,80 L66,42 Q66,40 68,40 Z"/>
+</svg>
