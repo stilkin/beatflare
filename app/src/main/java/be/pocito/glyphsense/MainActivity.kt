@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +63,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -279,7 +277,7 @@ private fun PlayTab(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Header(isRunning)
+        TabHeader("▶", "Play", trailing = { StatusDot(isRunning) })
 
         VisualizerCard(
             spectrum = spectrum,
@@ -416,6 +414,8 @@ private fun ShowTab(modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        TabHeader("✦", "Show")
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -452,6 +452,8 @@ private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        TabHeader("★", "Beacon")
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -565,6 +567,8 @@ private fun GlyphsTab(modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        TabHeader("✱", "Glyphs")
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -575,20 +579,14 @@ private fun GlyphsTab(modifier: Modifier) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    "Glyph Settings",
+                    "Brightness",
                     style = MaterialTheme.typography.titleSmall,
                     color = BeatFlareOnSurfaceDim,
                 )
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "Brightness",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(90.dp),
-                    )
                     Slider(
                         value = settings.brightness.coerceIn(0.05f, 1f),
                         onValueChange = { v ->
@@ -610,7 +608,23 @@ private fun GlyphsTab(modifier: Modifier) {
                         modifier = Modifier.width(36.dp),
                     )
                 }
+            }
+        }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Zones",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BeatFlareOnSurfaceDim,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -630,31 +644,33 @@ private fun GlyphsTab(modifier: Modifier) {
     }
 }
 
-// ─────────────────── Header + status ───────────────────
+// ─────────────────── Tab header + status ───────────────────
 
 @Composable
-private fun Header(isRunning: Boolean) {
-    Spacer(Modifier.height(8.dp))
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun TabHeader(
+    icon: String,
+    title: String,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = "BeatFlare",
-            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
-        )
-        Spacer(Modifier.height(6.dp))
         Text(
-            "BeatFlare",
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 1.sp,
-            ),
-            color = BeatFlareOnSurfaceDim,
+            icon,
+            fontSize = 22.sp,
+            color = BeatFlareMagenta,
         )
-        Spacer(Modifier.height(4.dp))
-        StatusDot(isRunning)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        trailing?.invoke()
     }
 }
 
@@ -842,7 +858,7 @@ private fun GradientButton(
 
 private val themeGroups: List<Pair<String, List<PartyTheme>>> = listOf(
     "Spectrum" to listOf(PartyTheme.SPECTRUM, PartyTheme.RAINBOW),
-    "Mood" to listOf(PartyTheme.FIRE, PartyTheme.OCEAN),
+    "Mood" to listOf(PartyTheme.FIRE, PartyTheme.OCEAN, PartyTheme.FOREST),
     "Pulse" to listOf(PartyTheme.BREATHE, PartyTheme.SWEEP, PartyTheme.STROBE),
 )
 
@@ -851,6 +867,7 @@ private fun PartyTheme.subtitle(): String = when (this) {
     PartyTheme.RAINBOW -> "Hue cycles continuously, brightness from bass"
     PartyTheme.FIRE -> "Warm reds and oranges, intensity tracks bass"
     PartyTheme.OCEAN -> "Cool blues and teals, hue shifts with mids"
+    PartyTheme.FOREST -> "Greens and yellows, hue shifts with mids"
     PartyTheme.BREATHE -> "Slow sine pulse on a fixed hue"
     PartyTheme.SWEEP -> "Slow hue rotation across cool tones"
     PartyTheme.STROBE -> "Bright white flash on every beat"
@@ -958,6 +975,13 @@ private fun PartyTheme.stripeBrush(): Brush = when (this) {
             Color.hsl(200f, 0.80f, 0.40f),
             Color.hsl(180f, 0.80f, 0.45f),
             Color.hsl(160f, 0.80f, 0.50f),
+        ),
+    )
+    PartyTheme.FOREST -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(90f, 0.75f, 0.45f),
+            Color.hsl(115f, 0.75f, 0.40f),
+            Color.hsl(140f, 0.75f, 0.35f),
         ),
     )
     PartyTheme.BREATHE -> SolidColor(Color.hsl(280f, 0.70f, 0.50f))

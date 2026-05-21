@@ -63,6 +63,18 @@ enum class PartyTheme(val label: String) {
         }
     },
 
+    FOREST("Forest") {
+        override fun deriveColor(ctx: ThemeContext): Color {
+            // Yellow-green (90°) → Green (140°), mid-freq shifts hue
+            val midAvg = ctx.analysis.spectrum.slice(5..14).average().toFloat()
+            val hue = 90f + midAvg * 50f
+            val lightness = 0.08f + ctx.analysis.bassLevel * 0.45f
+            val flash = if (ctx.beatFlash > 0) 0.25f else 0f
+            val baseline = quietPulse(ctx.nowMs, ctx.analysis.bassLevel) * 0.10f
+            return Color.hsl(hue, 0.75f, (lightness + flash + baseline).coerceAtMost(1f))
+        }
+    },
+
     RAINBOW("Rainbow") {
         override fun deriveColor(ctx: ThemeContext): Color {
             // 8s full hue cycle, time-driven (no per-frame accumulator).
