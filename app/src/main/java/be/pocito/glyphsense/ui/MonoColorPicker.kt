@@ -61,8 +61,9 @@ fun MonoColorPicker(
 
         LabeledSlider(
             label = "Sat",
-            value = saturation,
-            valueRange = 0f..1f,
+            value = saturation.coerceIn(0.05f, 1f),
+            valueRange = 0.05f..1f,
+            steps = 18,
             display = "${(saturation * 100).roundToInt()}%",
         ) { newSat ->
             onColorChange(Color.hsv(hue, newSat, 1f).toArgb())
@@ -76,6 +77,7 @@ private fun LabeledSlider(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     display: String,
+    steps: Int = 0,
     onChange: (Float) -> Unit,
 ) {
     Row(
@@ -92,6 +94,7 @@ private fun LabeledSlider(
             value = value,
             onValueChange = onChange,
             valueRange = valueRange,
+            steps = steps,
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(
                 thumbColor = BeatFlareMagenta,

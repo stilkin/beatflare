@@ -29,7 +29,7 @@ object SettingsStore {
             partyTheme = prefs.getString(KEY_PARTY_THEME, null)
                 ?.let { name -> PartyTheme.entries.find { it.name == name } }
                 ?: PartyTheme.SPECTRUM,
-            monoColor = prefs.getInt(KEY_MONO_COLOR, 0xFFFFFFFF.toInt()),
+            monoColor = prefs.getInt(KEY_MONO_COLOR, 0xFFE91E8C.toInt()),
             partyOverlayText = prefs.getString(KEY_OVERLAY_TEXT, "") ?: "",
             glyphsOutputEnabled = prefs.getBoolean(KEY_GLYPHS_OUT, true),
             partyOutputEnabled = prefs.getBoolean(KEY_PARTY_OUT, true),

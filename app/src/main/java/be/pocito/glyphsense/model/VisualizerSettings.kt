@@ -6,7 +6,7 @@ data class VisualizerSettings(
     val zoneAEnabled: Boolean = true,          // bass VU (11 LEDs)
     val zoneBEnabled: Boolean = true,          // beat flash (5 LEDs)
     val partyTheme: PartyTheme = PartyTheme.SPECTRUM,
-    val monoColor: Int = 0xFFFFFFFF.toInt(),   // ARGB; Mono theme uses this as its base color
+    val monoColor: Int = 0xFFE91E8C.toInt(),   // ARGB; Mono theme uses this as its base color
     val partyOverlayText: String = "",         // empty = no character overlay on party screen
     val glyphsOutputEnabled: Boolean = true,   // drive glyph LEDs on start (Nothing devices only)
     val partyOutputEnabled: Boolean = true,    // launch front-screen party mode on start

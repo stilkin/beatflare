@@ -477,10 +477,12 @@ private fun GlyphsTab(modifier: Modifier) {
                         modifier = Modifier.width(90.dp),
                     )
                     Slider(
-                        value = settings.brightness,
+                        value = settings.brightness.coerceIn(0.05f, 1f),
                         onValueChange = { v ->
                             GlyphSenseService.updateSettings { it.copy(brightness = v) }
                         },
+                        valueRange = 0.05f..1f,
+                        steps = 18,
                         modifier = Modifier.weight(1f),
                         colors = SliderDefaults.colors(
                             thumbColor = BeatFlareMagenta,
