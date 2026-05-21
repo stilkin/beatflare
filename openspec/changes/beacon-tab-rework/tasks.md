@@ -70,5 +70,5 @@
 
 ## 10. Docs
 
-- [ ] 10.1 Update README "Features" section: Beacon tab, hue picker (no saturation), text colour presets, React-to-sound, theme groupings
-- [ ] 10.2 Update `docs/ARCHITECTURE.md`: 4-tab layout, BeaconOverlay alongside PartyOverlay, settings migration note
+- [x] 10.1 Update README "Features" section: Beacon tab, hue picker (no saturation), text colour presets, React-to-sound, theme groupings
+- [x] 10.2 Update `docs/ARCHITECTURE.md`: 4-tab layout, BeaconOverlay alongside PartyOverlay, settings migration note
