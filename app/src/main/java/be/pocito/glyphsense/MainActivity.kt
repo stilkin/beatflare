@@ -66,11 +66,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import be.pocito.glyphsense.model.BeaconTextColor
 import be.pocito.glyphsense.model.PartyTheme
 import be.pocito.glyphsense.model.VisualizerSettings
 import be.pocito.glyphsense.service.GlyphSenseService
+import be.pocito.glyphsense.ui.BeaconHuePicker
+import be.pocito.glyphsense.ui.BeaconOverlay
 import be.pocito.glyphsense.ui.EmojiOverlaySettings
-import be.pocito.glyphsense.ui.MonoColorPicker
 import be.pocito.glyphsense.ui.PartyOverlay
 import be.pocito.glyphsense.ui.theme.BeatFlareMagenta
 import be.pocito.glyphsense.ui.theme.BeatFlareOnSurfaceDim
@@ -78,7 +80,7 @@ import be.pocito.glyphsense.ui.theme.BeatFlareOrange
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
 import kotlin.math.roundToInt
 
-private enum class Tab { Play, Party, Glyphs }
+private enum class Tab { Beacon, Play, Show, Glyphs }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,13 +89,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             GlyphSenseTheme {
                 var partyMode by remember { mutableStateOf(false) }
+                var showBeacon by remember { mutableStateOf(false) }
                 Box(Modifier.fillMaxSize()) {
                     MainScreen(
-                        partyMode = partyMode,
-                        onLaunchParty = { partyMode = true },
+                        onLaunchParty = {
+                            showBeacon = false
+                            partyMode = true
+                        },
                         onStopParty = { partyMode = false },
+                        onLaunchBeacon = {
+                            partyMode = false
+                            showBeacon = true
+                        },
                     )
-                    if (partyMode) {
+                    // Mutually exclusive overlays — Beacon wins if both flags somehow get set.
+                    if (showBeacon) {
+                        BeaconOverlay(onDismiss = { showBeacon = false })
+                    } else if (partyMode) {
                         PartyOverlay(onDismiss = { partyMode = false })
                     }
                 }
@@ -104,9 +116,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(
-    partyMode: Boolean = false,
     onLaunchParty: () -> Unit = {},
     onStopParty: () -> Unit = {},
+    onLaunchBeacon: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val isNothingDevice = GlyphSenseService.isNothingDevice
@@ -132,13 +144,14 @@ fun MainScreen(
             .fillMaxSize()
             .padding(innerPadding)
         when (selectedTab) {
+            Tab.Beacon -> BeaconTab(tabModifier, onLaunchBeacon = onLaunchBeacon)
             Tab.Play -> PlayTab(
                 modifier = tabModifier,
                 isNothingDevice = isNothingDevice,
                 onLaunchParty = onLaunchParty,
                 onStopParty = onStopParty,
             )
-            Tab.Party -> PartyTab(tabModifier)
+            Tab.Show -> ShowTab(tabModifier)
             Tab.Glyphs -> GlyphsTab(tabModifier)
         }
     }
@@ -150,6 +163,13 @@ fun MainScreen(
 private fun BottomNav(selected: Tab, showGlyphs: Boolean, onSelect: (Tab) -> Unit) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
         NavigationBarItem(
+            selected = selected == Tab.Beacon,
+            onClick = { onSelect(Tab.Beacon) },
+            icon = { Text("★", fontSize = 20.sp) },
+            label = { Text("Beacon") },
+            colors = navColors(),
+        )
+        NavigationBarItem(
             selected = selected == Tab.Play,
             onClick = { onSelect(Tab.Play) },
             icon = { Text("▶", fontSize = 18.sp) },
@@ -157,10 +177,10 @@ private fun BottomNav(selected: Tab, showGlyphs: Boolean, onSelect: (Tab) -> Uni
             colors = navColors(),
         )
         NavigationBarItem(
-            selected = selected == Tab.Party,
-            onClick = { onSelect(Tab.Party) },
+            selected = selected == Tab.Show,
+            onClick = { onSelect(Tab.Show) },
             icon = { Text("✦", fontSize = 20.sp) },
-            label = { Text("Party") },
+            label = { Text("Show") },
             colors = navColors(),
         )
         if (showGlyphs) {
@@ -352,7 +372,7 @@ private fun OutputToggles(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             ToggleRow("Glyphs", glyphsEnabled, onGlyphs)
-            ToggleRow("Party mode", partyEnabled, onParty)
+            ToggleRow("Show", partyEnabled, onParty)
         }
     }
 }
@@ -384,7 +404,7 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 }
 
 @Composable
-private fun PartyTab(modifier: Modifier) {
+private fun ShowTab(modifier: Modifier) {
     val settings by GlyphSenseService.settings.collectAsState()
 
     Column(
@@ -400,27 +420,47 @@ private fun PartyTab(modifier: Modifier) {
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
                     "Theme",
                     style = MaterialTheme.typography.titleSmall,
                     color = BeatFlareOnSurfaceDim,
                 )
-                ThemeSelector(
+                GroupedThemeList(
                     selected = settings.partyTheme,
                     onSelect = { t ->
                         GlyphSenseService.updateSettings { it.copy(partyTheme = t) }
                     },
                 )
-                if (settings.partyTheme == PartyTheme.MONOCHROME) {
-                    MonoColorPicker(
-                        color = settings.monoColor,
-                        onColorChange = { c ->
-                            GlyphSenseService.updateSettings { it.copy(monoColor = c) }
-                        },
-                    )
-                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
+    val context = LocalContext.current
+    val settings by GlyphSenseService.settings.collectAsState()
+
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                EmojiOverlaySettings(
+                    current = settings.beaconText,
+                    onChange = { txt ->
+                        GlyphSenseService.updateSettings { it.copy(beaconText = txt) }
+                    },
+                )
             }
         }
 
@@ -429,16 +469,85 @@ private fun PartyTab(modifier: Modifier) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(16.dp),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                EmojiOverlaySettings(
-                    current = settings.partyOverlayText,
-                    onChange = { txt ->
-                        GlyphSenseService.updateSettings { it.copy(partyOverlayText = txt) }
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Background",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BeatFlareOnSurfaceDim,
+                )
+                BeaconHuePicker(
+                    hue = settings.beaconHue,
+                    onHueChange = { h ->
+                        GlyphSenseService.updateSettings { it.copy(beaconHue = h) }
+                    },
+                )
+
+                Text(
+                    "Text colour",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BeatFlareOnSurfaceDim,
+                )
+                BeaconTextColorRow(
+                    selected = settings.beaconTextColor,
+                    onSelect = { c ->
+                        GlyphSenseService.updateSettings { it.copy(beaconTextColor = c) }
+                    },
+                )
+
+                ToggleRow(
+                    label = "React to sound",
+                    checked = settings.beaconReactToSound,
+                    onChange = { v ->
+                        GlyphSenseService.updateSettings { it.copy(beaconReactToSound = v) }
                     },
                 )
             }
         }
 
+        GradientButton(
+            text = "Light up beacon",
+            enabled = true,
+            isActive = true,
+            onClick = {
+                // Auto-start the service only when reactive Beacon needs audio.
+                if (settings.beaconReactToSound && !GlyphSenseService.isRunning.value) {
+                    context.startForegroundService(GlyphSenseService.intentStart(context))
+                }
+                onLaunchBeacon()
+            },
+        )
+    }
+}
+
+@Composable
+private fun BeaconTextColorRow(selected: BeaconTextColor, onSelect: (BeaconTextColor) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        BeaconTextColor.entries.forEach { c ->
+            val isSelected = c == selected
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(c.color)
+                    .clickable { onSelect(c) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .background(BeatFlareMagenta),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -727,42 +836,75 @@ private fun GradientButton(
 
 // ─────────────────── Theme selector ───────────────────
 
+private val themeGroups: List<Pair<String, List<PartyTheme>>> = listOf(
+    "Spectrum" to listOf(PartyTheme.SPECTRUM, PartyTheme.RAINBOW),
+    "Mood" to listOf(PartyTheme.FIRE, PartyTheme.OCEAN),
+    "Pulse" to listOf(PartyTheme.BREATHE, PartyTheme.SWEEP, PartyTheme.STROBE),
+)
+
+private fun PartyTheme.subtitle(): String = when (this) {
+    PartyTheme.SPECTRUM -> "Color follows the music's frequency"
+    PartyTheme.RAINBOW -> "Hue cycles continuously, brightness from bass"
+    PartyTheme.FIRE -> "Warm reds and oranges, intensity tracks bass"
+    PartyTheme.OCEAN -> "Cool blues and teals, hue shifts with mids"
+    PartyTheme.BREATHE -> "Slow sine pulse on a fixed hue"
+    PartyTheme.SWEEP -> "Slow hue rotation across cool tones"
+    PartyTheme.STROBE -> "Bright white flash on every beat"
+}
+
 @Composable
-private fun ThemeSelector(selected: PartyTheme, onSelect: (PartyTheme) -> Unit) {
-    val themes = PartyTheme.entries
-    val rows = themes.chunked(3)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                row.forEach { theme ->
-                    val isSelected = theme == selected
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (isSelected) {
-                                    BeatFlareMagenta.copy(alpha = 0.25f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                            )
-                            .clickable { onSelect(theme) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            theme.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (isSelected) BeatFlareMagenta else BeatFlareOnSurfaceDim,
-                        )
-                    }
+private fun GroupedThemeList(selected: PartyTheme, onSelect: (PartyTheme) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        themeGroups.forEach { (label, themes) ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BeatFlareOnSurfaceDim,
+                )
+                themes.forEach { theme ->
+                    ThemeRow(theme, theme == selected) { onSelect(theme) }
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun ThemeRow(theme: PartyTheme, isSelected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (isSelected) {
+                    BeatFlareMagenta.copy(alpha = 0.18f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                },
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                theme.label,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = if (isSelected) BeatFlareMagenta else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                theme.subtitle(),
+                style = MaterialTheme.typography.bodySmall,
+                color = BeatFlareOnSurfaceDim,
+            )
+        }
+        if (isSelected) {
+            Text(
+                "✓",
+                style = MaterialTheme.typography.bodyLarge,
+                color = BeatFlareMagenta,
+            )
         }
     }
 }
