@@ -16,8 +16,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -59,6 +61,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -454,21 +457,6 @@ private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(16.dp),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                EmojiOverlaySettings(
-                    current = settings.beaconText,
-                    onChange = { txt ->
-                        GlyphSenseService.updateSettings { it.copy(beaconText = txt) }
-                    },
-                )
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-        ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -484,24 +472,40 @@ private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
                         GlyphSenseService.updateSettings { it.copy(beaconHue = h) }
                     },
                 )
+                ToggleRow(
+                    label = "React to sound",
+                    checked = settings.beaconReactToSound,
+                    onChange = { v ->
+                        GlyphSenseService.updateSettings { it.copy(beaconReactToSound = v) }
+                    },
+                )
+            }
+        }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                EmojiOverlaySettings(
+                    current = settings.beaconText,
+                    onChange = { txt ->
+                        GlyphSenseService.updateSettings { it.copy(beaconText = txt) }
+                    },
+                )
                 Text(
                     "Text colour",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = BeatFlareOnSurfaceDim,
                 )
                 BeaconTextColorRow(
                     selected = settings.beaconTextColor,
                     onSelect = { c ->
                         GlyphSenseService.updateSettings { it.copy(beaconTextColor = c) }
-                    },
-                )
-
-                ToggleRow(
-                    label = "React to sound",
-                    checked = settings.beaconReactToSound,
-                    onChange = { v ->
-                        GlyphSenseService.updateSettings { it.copy(beaconReactToSound = v) }
                     },
                 )
             }
@@ -875,6 +879,7 @@ private fun ThemeRow(theme: PartyTheme, isSelected: Boolean, onClick: () -> Unit
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(10.dp))
             .background(
                 if (isSelected) {
@@ -883,11 +888,21 @@ private fun ThemeRow(theme: PartyTheme, isSelected: Boolean, onClick: () -> Unit
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 },
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // Left-edge stripe in the theme's signature colour(s). Flush to the card edge.
+        Box(
+            modifier = Modifier
+                .width(5.dp)
+                .fillMaxHeight()
+                .background(theme.stripeBrush()),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
             Text(
                 theme.label,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -904,9 +919,56 @@ private fun ThemeRow(theme: PartyTheme, isSelected: Boolean, onClick: () -> Unit
                 "✓",
                 style = MaterialTheme.typography.bodyLarge,
                 color = BeatFlareMagenta,
+                modifier = Modifier.padding(end = 12.dp),
             )
         }
     }
+}
+
+private fun PartyTheme.stripeBrush(): Brush = when (this) {
+    PartyTheme.SPECTRUM -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(0f, 0.85f, 0.5f),
+            Color.hsl(70f, 0.85f, 0.5f),
+            Color.hsl(140f, 0.85f, 0.5f),
+            Color.hsl(210f, 0.85f, 0.5f),
+            Color.hsl(280f, 0.85f, 0.5f),
+        ),
+    )
+    PartyTheme.RAINBOW -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(0f, 0.9f, 0.55f),
+            Color.hsl(60f, 0.9f, 0.55f),
+            Color.hsl(120f, 0.9f, 0.55f),
+            Color.hsl(180f, 0.9f, 0.55f),
+            Color.hsl(240f, 0.9f, 0.55f),
+            Color.hsl(300f, 0.9f, 0.55f),
+            Color.hsl(360f, 0.9f, 0.55f),
+        ),
+    )
+    PartyTheme.FIRE -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(10f, 0.95f, 0.5f),
+            Color.hsl(30f, 0.95f, 0.55f),
+            Color.hsl(50f, 0.95f, 0.55f),
+        ),
+    )
+    PartyTheme.OCEAN -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(200f, 0.80f, 0.40f),
+            Color.hsl(180f, 0.80f, 0.45f),
+            Color.hsl(160f, 0.80f, 0.50f),
+        ),
+    )
+    PartyTheme.BREATHE -> SolidColor(Color.hsl(280f, 0.70f, 0.50f))
+    PartyTheme.SWEEP -> Brush.verticalGradient(
+        listOf(
+            Color.hsl(200f, 0.75f, 0.50f),
+            Color.hsl(260f, 0.75f, 0.50f),
+            Color.hsl(320f, 0.75f, 0.50f),
+        ),
+    )
+    PartyTheme.STROBE -> SolidColor(Color.White)
 }
 
 @Composable

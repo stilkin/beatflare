@@ -53,6 +53,7 @@ fun BeaconHuePicker(hue: Float, onHueChange: (Float) -> Unit) {
                 value = hue,
                 onValueChange = onHueChange,
                 valueRange = 0f..360f,
+                steps = 71,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
                     thumbColor = BeatFlareMagenta,
