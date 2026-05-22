@@ -51,15 +51,17 @@ The visualizer runs as a foreground service, so it keeps working when the screen
 
 ## Installation
 
-1. Download [`beatflare.apk`](release/beatflare.apk) from this repository
-2. Transfer it to your phone and install (you may need to allow installs from unknown sources)
-3. **Enable the Glyph SDK on your phone** (required on Android 14-15, not needed on Android 16+):
+<a href="https://play.google.com/store/apps/details?id=be.pocito.glyphsense"><img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80"></a>
+
+After installing from the Play Store:
+
+1. **Enable the Glyph SDK on your phone** (Nothing phones on Android 14-15 only — not needed on Android 16+):
    Connect your phone via USB and run:
    ```
    adb shell settings put global nt_glyph_interface_debug_enable 1
    ```
    This grants third-party apps access to the glyph LEDs. It expires after 48 hours, so you'll need to re-run it periodically. On Android 16+ this restriction was removed by Nothing and the step can be skipped.
-4. Open BeatFlare, grant microphone permission, and hit start
+2. Open BeatFlare, grant microphone permission, and hit start
 
 > **Want to build from source?** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
