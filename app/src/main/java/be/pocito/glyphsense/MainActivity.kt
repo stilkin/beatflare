@@ -89,8 +89,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GlyphSenseTheme {
+                val context = LocalContext.current
                 var partyMode by remember { mutableStateOf(false) }
                 var showBeacon by remember { mutableStateOf(false) }
+                // True when launching the Beacon is what started the audio service.
+                // Dismissing then stops it again, restoring the prior state — we only
+                // ever stop what we started (a running Glyphs/Show session is left alone).
+                var beaconStartedService by remember { mutableStateOf(false) }
                 Box(Modifier.fillMaxSize()) {
                     MainScreen(
                         onLaunchParty = {
@@ -99,13 +104,28 @@ class MainActivity : ComponentActivity() {
                         },
                         onStopParty = { partyMode = false },
                         onLaunchBeacon = {
+                            // Reactive Beacon needs audio — start capture only if nothing
+                            // else is already running it.
+                            val s = GlyphSenseService.settings.value
+                            beaconStartedService = s.beaconReactToSound && !GlyphSenseService.isRunning.value
+                            if (beaconStartedService) {
+                                context.startForegroundService(GlyphSenseService.intentStart(context))
+                            }
                             partyMode = false
                             showBeacon = true
                         },
                     )
                     // Mutually exclusive overlays — Beacon wins if both flags somehow get set.
                     if (showBeacon) {
-                        BeaconOverlay(onDismiss = { showBeacon = false })
+                        BeaconOverlay(
+                            onDismiss = {
+                                showBeacon = false
+                                if (beaconStartedService) {
+                                    context.startService(GlyphSenseService.intentStop(context))
+                                    beaconStartedService = false
+                                }
+                            },
+                        )
                     } else if (partyMode) {
                         PartyOverlay(onDismiss = { partyMode = false })
                     }
@@ -414,7 +434,7 @@ private fun ShowTab(modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        TabHeader("✦", "Show")
+        TabHeader("✦", "Light Show Settings")
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -443,7 +463,6 @@ private fun ShowTab(modifier: Modifier) {
 
 @Composable
 private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
-    val context = LocalContext.current
     val settings by GlyphSenseService.settings.collectAsState()
 
     Column(
@@ -517,13 +536,9 @@ private fun BeaconTab(modifier: Modifier, onLaunchBeacon: () -> Unit) {
             text = "Light up beacon",
             enabled = true,
             isActive = true,
-            onClick = {
-                // Auto-start the service only when reactive Beacon needs audio.
-                if (settings.beaconReactToSound && !GlyphSenseService.isRunning.value) {
-                    context.startForegroundService(GlyphSenseService.intentStart(context))
-                }
-                onLaunchBeacon()
-            },
+            // Service start/stop is owned by onLaunchBeacon + the overlay's onDismiss,
+            // so the sensor is released again when the Beacon is dismissed.
+            onClick = onLaunchBeacon,
         )
     }
 }
@@ -567,7 +582,7 @@ private fun GlyphsTab(modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        TabHeader("✱", "Glyphs")
+        TabHeader("✱", "Glyph Settings")
 
         Card(
             modifier = Modifier.fillMaxWidth(),
