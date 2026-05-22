@@ -587,8 +587,9 @@ private fun GlyphsTab(modifier: Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val brightness = settings.brightness.coerceIn(0.05f, 1f)
                     Slider(
-                        value = settings.brightness.coerceIn(0.05f, 1f),
+                        value = brightness,
                         onValueChange = { v ->
                             GlyphSenseService.updateSettings { it.copy(brightness = v) }
                         },
@@ -602,7 +603,7 @@ private fun GlyphsTab(modifier: Modifier) {
                         ),
                     )
                     Text(
-                        "${(settings.brightness * 100).roundToInt()}%",
+                        "${(brightness * 100).roundToInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = BeatFlareOnSurfaceDim,
                         modifier = Modifier.width(36.dp),

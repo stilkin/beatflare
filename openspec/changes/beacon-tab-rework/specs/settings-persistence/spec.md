@@ -37,7 +37,7 @@ The system SHALL persist all user settings to local storage. Persisted settings 
 
 #### Scenario: Backwards-compatible defaults
 - **WHEN** the app is upgraded from a version that did not persist Beacon settings or React-to-sound
-- **THEN** Beacon hue defaults to white-equivalent (0°, but effectively any hue at full brightness is bright), beacon text defaults to empty, beacon text colour defaults to White, React-to-sound defaults to ON, both output toggles default to enabled, and no migration error occurs
+- **THEN** Beacon hue defaults to 0° (bright red, since saturation and value are both 1.0), beacon text defaults to empty, beacon text colour defaults to White, React-to-sound defaults to ON, both output toggles default to enabled, and no migration error occurs
 
 ## ADDED Requirements
 
