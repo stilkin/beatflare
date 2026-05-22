@@ -105,9 +105,15 @@ class MainActivity : ComponentActivity() {
                         onStopParty = { partyMode = false },
                         onLaunchBeacon = {
                             // Reactive Beacon needs audio — start capture only if nothing
-                            // else is already running it.
+                            // else is already running it AND we hold RECORD_AUDIO. Without
+                            // the permission we still show the Beacon (statically); we never
+                            // start a microphone foreground service, which throws on API 34+.
                             val s = GlyphSenseService.settings.value
-                            beaconStartedService = s.beaconReactToSound && !GlyphSenseService.isRunning.value
+                            val micGranted = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO,
+                            ) == PackageManager.PERMISSION_GRANTED
+                            beaconStartedService =
+                                s.beaconReactToSound && micGranted && !GlyphSenseService.isRunning.value
                             if (beaconStartedService) {
                                 context.startForegroundService(GlyphSenseService.intentStart(context))
                             }
