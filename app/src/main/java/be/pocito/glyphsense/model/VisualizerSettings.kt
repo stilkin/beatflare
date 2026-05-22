@@ -6,9 +6,10 @@ data class VisualizerSettings(
     val zoneAEnabled: Boolean = true,          // bass VU (11 LEDs)
     val zoneBEnabled: Boolean = true,          // beat flash (5 LEDs)
     val partyTheme: PartyTheme = PartyTheme.SPECTRUM,
-    val monoColor: Int = 0xFFFFFFFF.toInt(),   // ARGB; Mono theme uses this as its base color
-    val partyOverlayText: String = "",         // empty = no character overlay on party screen
+    val beaconHue: Float = 0f,                 // 0..360°; Beacon background colour is HSV(beaconHue, 1, brightness)
+    val beaconText: String = "",               // empty = no centred text on Beacon overlay
+    val beaconTextColor: BeaconTextColor = BeaconTextColor.WHITE,
+    val beaconReactToSound: Boolean = true,    // when true, Beacon brightness is audio-driven
     val glyphsOutputEnabled: Boolean = true,   // drive glyph LEDs on start (Nothing devices only)
-    val partyOutputEnabled: Boolean = true,    // launch front-screen party mode on start
+    val partyOutputEnabled: Boolean = true,    // launch front-screen Show overlay on start
 )
-

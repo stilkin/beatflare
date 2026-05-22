@@ -9,7 +9,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -24,25 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import be.pocito.glyphsense.R
 import be.pocito.glyphsense.audio.AudioAnalysis
 import be.pocito.glyphsense.model.ThemeContext
 import be.pocito.glyphsense.service.GlyphSenseService
-import java.text.BreakIterator
-import java.util.Locale
 
 /**
  * Full-screen color wash visualization driven by the selected [PartyTheme].
@@ -52,7 +38,6 @@ import java.util.Locale
 fun PartyOverlay(onDismiss: () -> Unit) {
     val activity = LocalContext.current as? Activity
 
-    // Intercept system back so it dismisses the overlay instead of finishing the activity.
     BackHandler { onDismiss() }
 
     DisposableEffect(Unit) {
@@ -101,34 +86,6 @@ fun PartyOverlay(onDismiss: () -> Unit) {
         Color.Black
     }
 
-    val overlayText = settings.partyOverlayText
-    val cfg = LocalConfiguration.current
-    val density = LocalDensity.current
-    val measurer = rememberTextMeasurer()
-    // Rotate multi-symbol overlays CCW so each glyph stays large and they all fit
-    // along the screen's long axis ("HI<3", "JD", etc. read bottom-to-top).
-    val rotate = overlayText.isNotEmpty() && graphemeCount(overlayText) > 1
-    // Auto-fit: measure the text at a reference size, then scale so it fits ~85%
-    // of the available axis. Naturally handles emoji-vs-letter width asymmetry
-    // without heuristics.
-    val overlaySizeSp = remember(overlayText, rotate, cfg.screenWidthDp, cfg.screenHeightDp) {
-        if (overlayText.isEmpty()) {
-            0.sp
-        } else {
-            val refSize = 100.sp
-            val layout = measurer.measure(
-                overlayText,
-                TextStyle(fontFamily = BungeeShade, fontSize = refSize),
-            )
-            val mWdp = with(density) { layout.size.width.toDp().value }
-            val mHdp = with(density) { layout.size.height.toDp().value }
-            val targetW = (if (rotate) cfg.screenHeightDp else cfg.screenWidthDp) * 0.85f
-            val targetH = (if (rotate) cfg.screenWidthDp else cfg.screenHeightDp) * 0.85f
-            val scale = minOf(targetW / mWdp, targetH / mHdp)
-            (refSize.value * scale).sp
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -138,44 +95,10 @@ fun PartyOverlay(onDismiss: () -> Unit) {
                 indication = null,
             ) { onDismiss() },
     ) {
-        if (overlayText.isNotEmpty()) {
-            Text(
-                overlayText,
-                color = Color.White.copy(alpha = 0.95f),
-                fontSize = overlaySizeSp,
-                fontFamily = BungeeShade,
-                softWrap = false,
-                maxLines = 1,
-                // Lighter shadow than before — the font already carries a built-in 3D look,
-                // so the shadow just helps it stay legible on white/pale backgrounds.
-                style = TextStyle(
-                    shadow = Shadow(
-                        color = Color.Black.copy(alpha = 0.45f),
-                        offset = Offset(3f, 3f),
-                        blurRadius = 6f,
-                    ),
-                ),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .wrapContentSize(unbounded = true)
-                    .then(if (rotate) Modifier.rotate(-90f) else Modifier),
-            )
-        }
         Text(
             "Tap to exit",
             color = Color.White.copy(alpha = 0.35f),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp),
         )
     }
-}
-
-private val BungeeShade = FontFamily(Font(R.font.bungee_shade))
-
-/** Count user-perceived characters (grapheme clusters). Flags = 1, "❤️A" = 2. */
-private fun graphemeCount(s: String): Int {
-    val it = BreakIterator.getCharacterInstance(Locale.ROOT)
-    it.setText(s)
-    var n = 0
-    while (it.next() != BreakIterator.DONE) n++
-    return n
 }

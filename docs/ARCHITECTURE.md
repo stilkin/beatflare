@@ -51,28 +51,39 @@ app/src/main/java/be/pocito/glyphsense/
     GlyphDriver.kt           Maps AudioAnalysis -> LED values via DeviceProfile
   model/
     DeviceProfile.kt         Per-device LED zone configuration
-    PartyTheme.kt            8 color themes + ThemeContext data class
-    SettingsStore.kt         SharedPreferences persistence
-    VisualizerSettings.kt    Runtime settings (brightness, zones, theme, mono color, overlay text, output toggles)
+    PartyTheme.kt            7 color themes + ThemeContext data class
+    BeaconTextColor.kt       5-entry enum of preset text colours for the Beacon overlay
+    SettingsStore.kt         SharedPreferences persistence + one-shot migration of legacy keys
+    VisualizerSettings.kt    Runtime settings (brightness, zones, theme, beacon hue/text/colour, react-to-sound, output toggles)
   service/
     GlyphSenseService.kt     Foreground service owning the pipeline
   ui/
-    PartyOverlay.kt          Full-screen color visualization with find-me overlay
-    MonoColorPicker.kt       Hue + saturation picker for the Mono theme
-    EmojiOverlaySettings.kt  Preset row + text field for the find-me overlay
+    PartyOverlay.kt          Full-screen Show overlay — colour wash only, driven by selected PartyTheme
+    BeaconOverlay.kt         Full-screen Beacon overlay — single hue + optional centred text
+    BeaconHuePicker.kt       Hue slider (saturation locked to 1.0) with live preview swatch
+    EmojiOverlaySettings.kt  Preset row + text field for the Beacon overlay text
     theme/                   Material 3 colour scheme and typography
   widget/
     GlyphSenseWidget.kt      Home-screen widget (toggle start/stop)
-  MainActivity.kt            Bottom-nav tabbed UI (Play / Party / Glyphs)
+  MainActivity.kt            Bottom-nav tabbed UI (Beacon / Play / Show / Glyphs)
 ```
 
 ### ThemeContext
 
-`PartyTheme.deriveColor(ctx: ThemeContext)` takes a single `ThemeContext(analysis, beatFlash, nowMs, settings)`. Bundling the inputs means new dependencies (e.g. `settings.monoColor`) can be added without changing every theme's signature. Themes that don't need a field just ignore it.
+`PartyTheme.deriveColor(ctx: ThemeContext)` takes a single `ThemeContext(analysis, beatFlash, nowMs, settings)`. Bundling the inputs means new dependencies can be added without changing every theme's signature. Themes that don't need a field just ignore it.
 
-### Find-me overlay
+### Show vs Beacon overlays
 
-`PartyOverlay` renders an optional user-configured character or short text centered over the colour wash. Single-grapheme strings stay upright; multi-grapheme strings rotate 90° CCW so they read along the screen's long axis. Font size is auto-fit via Compose `TextMeasurer` -- the text is measured at a reference size, then scaled so it fills ~85% of the available axis. This handles the width asymmetry between emoji (~1 em) and letters (~0.6 em) without per-character heuristics. Font is bundled `Bungee Shade` (in `res/font/`).
+Two full-screen overlays, mutually exclusive at the render layer in `MainActivity`. `PartyOverlay` renders the colour wash for the selected `PartyTheme` (no text). `BeaconOverlay` renders a single hue (HSV with saturation=1.0) at audio-modulated or full brightness, plus an optional centred text — single-grapheme strings stay upright; multi-grapheme strings rotate 90° CCW so they read along the screen's long axis. Font size is auto-fit via Compose `TextMeasurer` at a reference size and scaled to fill ~85% of the available axis. Font is bundled `Bungee Shade` (in `res/font/`). Glyph LED output is independent of either overlay.
+
+### Settings migration
+
+`SettingsStore.load()` runs a one-shot migration when reading prefs from an older install:
+- `partyTheme = MONOCHROME` is remapped to `SPECTRUM`.
+- Legacy `mono_color` (ARGB int) has its hue extracted into the new `beacon_hue` (Float, degrees). Saturation is discarded — Beacon uses a hue-only picker.
+- Legacy `party_overlay_text` is copied to `beacon_text`.
+
+After the first migrated load the new keys are written and the legacy keys are removed, so subsequent loads short-circuit.
 
 ## Audio Pipeline
 

@@ -29,18 +29,17 @@ The visualizer runs as a foreground service, so it keeps working when the screen
 - **Live microphone input** -- reacts to ambient sound around you, not just on-device playback
 - **Adaptive volume** -- automatically adjusts from quiet room to festival stage
 - **Works with screen off** -- lock your phone and the glyphs keep going (saves battery)
-- **Tabbed UI** -- Play / Party / Glyphs (the Glyphs tab is hidden on non-Nothing devices)
-- **Output toggles** -- choose Glyphs, Party mode, or both, and Start activates whichever are enabled
-- **Eight party themes** -- Spectrum, Fire, Ocean, Mono, Rainbow, Strobe, Breathe, Sweep
-- **Custom Mono color** -- hue + saturation picker with a live preview swatch (brightness stays audio-driven)
-- **Find-me overlay** -- pick an emoji or up to 4 characters to display centered on the party screen; multi-character text rotates so it fills the screen's long axis
+- **Tabbed UI** -- Beacon / Play / Show / Glyphs (the Glyphs tab is hidden on non-Nothing devices)
+- **Beacon tab** -- a full-screen "find me" mode with a hue-only background, optional emoji or up to 4 characters of text in a chosen colour, and a React-to-sound toggle (works permission-free when off)
+- **Output toggles** -- choose Glyphs, Show, or both, and Start activates whichever are enabled
+- **Seven Show themes, grouped** -- Spectrum (Spectrum, Rainbow), Mood (Fire, Ocean), Pulse (Breathe, Sweep, Strobe), each with a one-line subtitle
 - **Quiet-state pulse** -- every theme keeps gently breathing during silent passages instead of going black
 - **Glyph zones + brightness** -- enable/disable spectrum, bass, and beat zones independently, and tune overall LED intensity
 - **Notification control** -- start/stop without opening the app
 
 ## Supported Devices
 
-| Device | LEDs | Glyph visualization | Party mode |
+| Device | LEDs | Glyph visualization | Show / Beacon |
 |---|---|---|---|
 | Nothing Phone (1) | 15 | Yes | Yes |
 | Nothing Phone (2) | 33 | Yes | Yes |
@@ -52,15 +51,17 @@ The visualizer runs as a foreground service, so it keeps working when the screen
 
 ## Installation
 
-1. Download [`beatflare.apk`](release/beatflare.apk) from this repository
-2. Transfer it to your phone and install (you may need to allow installs from unknown sources)
-3. **Enable the Glyph SDK on your phone** (required on Android 14-15, not needed on Android 16+):
+<a href="https://play.google.com/store/apps/details?id=be.pocito.glyphsense"><img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80"></a>
+
+After installing from the Play Store:
+
+1. **Enable the Glyph SDK on your phone** (Nothing phones on Android 14-15 only — not needed on Android 16+):
    Connect your phone via USB and run:
    ```
    adb shell settings put global nt_glyph_interface_debug_enable 1
    ```
    This grants third-party apps access to the glyph LEDs. It expires after 48 hours, so you'll need to re-run it periodically. On Android 16+ this restriction was removed by Nothing and the step can be skipped.
-4. Open BeatFlare, grant microphone permission, and hit start
+2. Open BeatFlare, grant microphone permission, and hit start
 
 > **Want to build from source?** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

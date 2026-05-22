@@ -63,17 +63,15 @@ enum class PartyTheme(val label: String) {
         }
     },
 
-    MONOCHROME("Mono") {
+    FOREST("Forest") {
         override fun deriveColor(ctx: ThemeContext): Color {
-            // Audio-driven intensity 0..1
-            val intensity = 0.03f +
-                ctx.analysis.bassLevel * 0.60f +
-                (if (ctx.beatFlash > 0) 0.30f else 0f) +
-                quietPulse(ctx.nowMs, ctx.analysis.bassLevel) * 0.10f
-            val v = intensity.coerceIn(0f, 1f)
-            // Multiply user color's RGB by intensity. Default (white) keeps old behavior.
-            val base = Color(ctx.settings.monoColor)
-            return Color(base.red * v, base.green * v, base.blue * v, 1f)
+            // Yellow-green (90°) → Green (140°), mid-freq shifts hue
+            val midAvg = ctx.analysis.spectrum.slice(5..14).average().toFloat()
+            val hue = 90f + midAvg * 50f
+            val lightness = 0.08f + ctx.analysis.bassLevel * 0.45f
+            val flash = if (ctx.beatFlash > 0) 0.25f else 0f
+            val baseline = quietPulse(ctx.nowMs, ctx.analysis.bassLevel) * 0.10f
+            return Color.hsl(hue, 0.75f, (lightness + flash + baseline).coerceAtMost(1f))
         }
     },
 

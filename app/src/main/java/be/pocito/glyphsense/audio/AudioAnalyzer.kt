@@ -79,6 +79,11 @@ class AudioAnalyzer(
 
     // Reusable output buffer so we don't allocate every frame.
     private val outSpectrum = FloatArray(spectrumBands)
+    private val zeroSpectrum = FloatArray(spectrumBands)
+
+    // Hysteresis gate on the normalized frame level: closed during near-silence
+    // so the quiet-state pulse in PartyTheme owns the screen instead of mic hiss.
+    private var gateOpen: Boolean = false
 
     /**
      * Process one PCM buffer. Returns a fresh [AudioAnalysis] suitable for
@@ -99,13 +104,42 @@ class AudioAnalyzer(
         // Beat detector runs on log-scale transient energy too, so thresholds stay sensible.
         val beat = beatDetector.update(ln(1f + splitter.transientEnergy))
 
-        return AudioAnalysis(
-            bassLevel = bass,
-            spectrum = outSpectrum.copyOf(),
-            beat = beat,
-            bassRaw = bassLog, // report log value now; floor/peak are also in log space
-            bassFloor = bassNormalizer.currentFloor(),
-            bassPeak = bassNormalizer.currentPeak(),
-        )
+        // Frame-level gate uses max(bass, spectrum.max) so a single active band
+        // can hold the gate open. Hysteresis gap (0.06..0.10) keeps mic noise
+        // from oscillating the gate at the boundary.
+        val spectrumMax = outSpectrum.maxOrNull() ?: 0f
+        val frameLevel = maxOf(bass, spectrumMax)
+        gateOpen = when {
+            frameLevel >= OPEN_THRESHOLD -> true
+            frameLevel <= CLOSE_THRESHOLD -> false
+            else -> gateOpen
+        }
+
+        return if (gateOpen) {
+            AudioAnalysis(
+                bassLevel = bass,
+                spectrum = outSpectrum.copyOf(),
+                beat = beat,
+                bassRaw = bassLog, // report log value now; floor/peak are also in log space
+                bassFloor = bassNormalizer.currentFloor(),
+                bassPeak = bassNormalizer.currentPeak(),
+            )
+        } else {
+            // Gated: zero the audio-reactive outputs so the quiet pulse renders.
+            // Debug fields stay live so the Play-tab debug card keeps tracking.
+            AudioAnalysis(
+                bassLevel = 0f,
+                spectrum = zeroSpectrum.copyOf(),
+                beat = false,
+                bassRaw = bassLog,
+                bassFloor = bassNormalizer.currentFloor(),
+                bassPeak = bassNormalizer.currentPeak(),
+            )
+        }
+    }
+
+    companion object {
+        private const val OPEN_THRESHOLD = 0.10f
+        private const val CLOSE_THRESHOLD = 0.06f
     }
 }
