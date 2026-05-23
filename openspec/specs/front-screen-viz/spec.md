@@ -1,5 +1,11 @@
-## ADDED Requirements
+# front-screen-viz Specification
 
+## Purpose
+Full-screen, audio-reactive color visualization on the phone's front screen — the
+"Show" overlay (formerly "party mode"): a theme-driven color wash, an optional
+centered text/emoji, and the rules for launching and dismissing the overlay. The
+overlay's microphone lifetime is owned by the capture-lifecycle consumer model.
+## Requirements
 ### Requirement: Full-screen color visualization
 The system SHALL provide a full-screen color visualization mode ("party mode") that fills the display with colors that shift and pulse in sync with the audio analysis data.
 
@@ -9,7 +15,7 @@ The system SHALL provide a full-screen color visualization mode ("party mode") t
 
 #### Scenario: Party mode deactivated
 - **WHEN** the user taps the overlay to exit, or presses system back
-- **THEN** the overlay closes and the tabbed main view is restored; the visualizer continues running if it was running
+- **THEN** the overlay closes and the tabbed main view is restored; capture continues only if another consumer (such as a persistent session) still needs it, and is released if the overlay was the sole consumer
 
 ### Requirement: Party mode is off by default
 The system SHALL start with the party overlay not visible. The front screen SHALL show the tabbed controls UI by default to conserve battery.
@@ -79,4 +85,5 @@ The system back gesture or button, when invoked while the party overlay is visib
 
 #### Scenario: Back from overlay
 - **WHEN** the party overlay is visible and the user presses back
-- **THEN** the overlay closes and the previously selected tab is restored; the visualizer continues running if it was running
+- **THEN** the overlay closes and the previously selected tab is restored; capture is released if the overlay was the sole consumer, otherwise it continues
+
