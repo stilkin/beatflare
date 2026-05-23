@@ -1,5 +1,8 @@
-## ADDED Requirements
+# device-profiles Specification
 
+## Purpose
+TBD - created by archiving change nothing-multi-model. Update Purpose after archive.
+## Requirements
 ### Requirement: Automatic device detection and profile selection
 The system SHALL detect the Nothing Phone model at runtime and select the appropriate LED zone profile automatically. No user configuration SHALL be required.
 
@@ -29,11 +32,3 @@ The audio band splitter SHALL produce a number of spectrum sub-bands matching th
 - **WHEN** the Phone (2) profile is active with 16 spectrum LEDs
 - **THEN** the band splitter produces 16 log-spaced spectrum sub-bands
 
-## MODIFIED Requirements
-
-### Requirement: LED zone mapping
-The system SHALL map audio frequency bands to the active device profile's zone configuration instead of the hardcoded Phone (3a) layout. Zone assignments (which indices are spectrum, bass, beat) SHALL come from the device profile.
-
-#### Scenario: Spectrum displayed on device-specific zone
-- **WHEN** FFT produces N sub-band energy values (matching spectrum zone LED count)
-- **THEN** each LED in the spectrum zone is set to brightness proportional to its corresponding sub-band energy
