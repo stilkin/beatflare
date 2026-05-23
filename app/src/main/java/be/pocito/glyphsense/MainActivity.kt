@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import be.pocito.glyphsense.flash.FlashController
 import be.pocito.glyphsense.model.BeaconTextColor
 import be.pocito.glyphsense.model.PartyTheme
 import be.pocito.glyphsense.model.VisualizerSettings
@@ -158,13 +159,15 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val isNothingDevice = GlyphSenseService.isNothingDevice
+    val hasFlash = remember { FlashController.isAvailable(context) }
+    // The Lights tab exists wherever there's a rear output: glyphs (Nothing) or a torch.
+    val showLights = isNothingDevice || hasFlash
 
     LaunchedEffect(Unit) { GlyphSenseService.loadSettingsIfNeeded(context) }
 
     var selectedTab by rememberSaveable { mutableStateOf(Tab.Beacon) }
-    // The Lights tab only exists where there's a rear output (Nothing glyphs today) —
-    // fall back gracefully if it's somehow selected on a device without one.
-    if (selectedTab == Tab.Lights && !isNothingDevice) selectedTab = Tab.Beacon
+    // Fall back gracefully if Lights is somehow selected on a device without a rear output.
+    if (selectedTab == Tab.Lights && !showLights) selectedTab = Tab.Beacon
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -172,7 +175,7 @@ fun MainScreen(
         bottomBar = {
             BottomNav(
                 selected = selectedTab,
-                showLights = isNothingDevice,
+                showLights = showLights,
                 onSelect = { selectedTab = it },
             )
         },
@@ -183,7 +186,12 @@ fun MainScreen(
         when (selectedTab) {
             Tab.Beacon -> BeaconTab(tabModifier, onLaunchBeacon = onLaunchBeacon)
             Tab.Show -> ShowTab(tabModifier, onLaunchShow = onLaunchParty)
-            Tab.Lights -> LightsTab(tabModifier, onLaunchParty = onLaunchParty)
+            Tab.Lights -> LightsTab(
+                tabModifier,
+                onLaunchParty = onLaunchParty,
+                isNothingDevice = isNothingDevice,
+                hasFlash = hasFlash,
+            )
         }
     }
 }
@@ -481,7 +489,12 @@ private fun BeaconTextColorRow(selected: BeaconTextColor, onSelect: (BeaconTextC
 }
 
 @Composable
-private fun LightsTab(modifier: Modifier, onLaunchParty: () -> Unit) {
+private fun LightsTab(
+    modifier: Modifier,
+    onLaunchParty: () -> Unit,
+    isNothingDevice: Boolean,
+    hasFlash: Boolean,
+) {
     val context = LocalContext.current
     val isRunning by GlyphSenseService.isRunning.collectAsState()
     val settings by GlyphSenseService.settings.collectAsState()
@@ -526,82 +539,136 @@ private fun LightsTab(modifier: Modifier, onLaunchParty: () -> Unit) {
             onTap = if (isRunning) onLaunchParty else null,
         )
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        // Glyph controls — only meaningful on Nothing phones with the LED matrix.
+        if (isNothingDevice) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
             ) {
-                Text(
-                    "Brightness",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = BeatFlareOnSurfaceDim,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val brightness = settings.brightness.coerceIn(0.05f, 1f)
-                    Slider(
-                        value = brightness,
-                        onValueChange = { v ->
-                            GlyphSenseService.updateSettings { it.copy(brightness = v) }
-                        },
-                        valueRange = 0.05f..1f,
-                        steps = 18,
-                        modifier = Modifier.weight(1f),
-                        colors = SliderDefaults.colors(
-                            thumbColor = BeatFlareMagenta,
-                            activeTrackColor = BeatFlareMagenta,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    )
                     Text(
-                        "${(brightness * 100).roundToInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
+                        "Brightness",
+                        style = MaterialTheme.typography.titleSmall,
                         color = BeatFlareOnSurfaceDim,
-                        modifier = Modifier.width(36.dp),
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val brightness = settings.brightness.coerceIn(0.05f, 1f)
+                        Slider(
+                            value = brightness,
+                            onValueChange = { v ->
+                                GlyphSenseService.updateSettings { it.copy(brightness = v) }
+                            },
+                            valueRange = 0.05f..1f,
+                            steps = 18,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = BeatFlareMagenta,
+                                activeTrackColor = BeatFlareMagenta,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        )
+                        Text(
+                            "${(brightness * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BeatFlareOnSurfaceDim,
+                            modifier = Modifier.width(36.dp),
+                        )
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        "Zones",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = BeatFlareOnSurfaceDim,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        ZoneToggle("Spectrum", settings.zoneCEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneCEnabled = v) }
+                        }
+                        ZoneToggle("Bass", settings.zoneAEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneAEnabled = v) }
+                        }
+                        ZoneToggle("Beat", settings.zoneBEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneBEnabled = v) }
+                        }
+                    }
                 }
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Flash output — the rear camera torch, available on any phone with a torch unit.
+        if (hasFlash) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
             ) {
-                Text(
-                    "Zones",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = BeatFlareOnSurfaceDim,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ZoneToggle("Spectrum", settings.zoneCEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneCEnabled = v) }
+                    Text(
+                        "Flash",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = BeatFlareOnSurfaceDim,
+                    )
+                    ToggleRow("Enabled", settings.flashEnabled) { v ->
+                        GlyphSenseService.updateSettings { it.copy(flashEnabled = v) }
                     }
-                    ZoneToggle("Bass", settings.zoneAEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneAEnabled = v) }
-                    }
-                    ZoneToggle("Beat", settings.zoneBEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneBEnabled = v) }
+                    if (settings.flashEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val flashIntensity = settings.flashIntensity.coerceIn(0.1f, 1f)
+                            Slider(
+                                value = flashIntensity,
+                                onValueChange = { v ->
+                                    GlyphSenseService.updateSettings { it.copy(flashIntensity = v) }
+                                },
+                                valueRange = 0.1f..1f,
+                                steps = 8,
+                                modifier = Modifier.weight(1f),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = BeatFlareMagenta,
+                                    activeTrackColor = BeatFlareMagenta,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
+                            )
+                            Text(
+                                "${(flashIntensity * 100).roundToInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = BeatFlareOnSurfaceDim,
+                                modifier = Modifier.width(36.dp),
+                            )
+                        }
                     }
                 }
             }
         }
 
         // The persistent session — survives screen lock, owned by this Start/Stop and the
-        // home-screen widget. On Nothing devices it drives the glyphs (Flash joins later).
+        // home-screen widget. On Nothing devices it drives the glyphs; Flash joins on any torch.
         AudioPermissionGate { canStart ->
             GradientButton(
                 text = if (isRunning) "Stop Visualizer" else "Start Visualizer",

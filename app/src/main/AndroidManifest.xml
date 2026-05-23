@@ -13,6 +13,12 @@
     <!-- Nothing Glyph SDK access -->
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
 
+    <!-- Rear camera torch (Flash output). Optional: torch control needs no CAMERA permission,
+         and required=false keeps the app installable on devices without a flash unit. -->
+    <uses-feature
+        android:name="android.hardware.camera.flash"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

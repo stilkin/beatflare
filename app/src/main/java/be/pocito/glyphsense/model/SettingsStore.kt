@@ -20,6 +20,8 @@ object SettingsStore {
     private const val KEY_BEACON_REACT = "beacon_react_to_sound"
     private const val KEY_GLYPHS_OUT = "glyphs_output_enabled"
     private const val KEY_PARTY_OUT = "party_output_enabled"
+    private const val KEY_FLASH_ENABLED = "flash_enabled"
+    private const val KEY_FLASH_INTENSITY = "flash_intensity"
 
     // Legacy keys from before the Beacon rework. Read once for migration, then removed.
     private const val LEGACY_MONO_COLOR = "mono_color"
@@ -71,6 +73,8 @@ object SettingsStore {
             beaconReactToSound = prefs.getBoolean(KEY_BEACON_REACT, true),
             glyphsOutputEnabled = prefs.getBoolean(KEY_GLYPHS_OUT, true),
             partyOutputEnabled = prefs.getBoolean(KEY_PARTY_OUT, true),
+            flashEnabled = prefs.getBoolean(KEY_FLASH_ENABLED, false),
+            flashIntensity = prefs.getFloat(KEY_FLASH_INTENSITY, 0.1f),
         )
 
         // One-shot migration cleanup: write the new shape and clear legacy keys.
@@ -99,6 +103,8 @@ object SettingsStore {
             .putBoolean(KEY_BEACON_REACT, settings.beaconReactToSound)
             .putBoolean(KEY_GLYPHS_OUT, settings.glyphsOutputEnabled)
             .putBoolean(KEY_PARTY_OUT, settings.partyOutputEnabled)
+            .putBoolean(KEY_FLASH_ENABLED, settings.flashEnabled)
+            .putFloat(KEY_FLASH_INTENSITY, settings.flashIntensity)
             .apply()
     }
 

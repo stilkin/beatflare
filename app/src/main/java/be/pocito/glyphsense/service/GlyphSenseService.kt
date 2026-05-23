@@ -17,6 +17,7 @@ import be.pocito.glyphsense.R
 import be.pocito.glyphsense.audio.AudioAnalysis
 import be.pocito.glyphsense.audio.AudioAnalyzer
 import be.pocito.glyphsense.audio.AudioCapture
+import be.pocito.glyphsense.flash.FlashController
 import be.pocito.glyphsense.glyph.GlyphController
 import be.pocito.glyphsense.glyph.GlyphDriver
 import be.pocito.glyphsense.model.DeviceProfile
@@ -122,6 +123,7 @@ class GlyphSenseService : Service() {
     }
 
     private var controller: GlyphController? = null
+    private var flashController: FlashController? = null
     private lateinit var capture: AudioCapture
     private lateinit var analyzer: AudioAnalyzer
     private lateinit var driver: GlyphDriver
@@ -139,6 +141,8 @@ class GlyphSenseService : Service() {
         deviceProfile = DeviceProfile.detect()
         Log.d(TAG, "Device profile: ${deviceProfile?.name ?: "non-Nothing"}")
         if (isNothingDevice) controller = GlyphController(applicationContext)
+        // Flash is independent of glyphs — available on any phone with a rear torch.
+        FlashController(applicationContext).let { if (it.available) flashController = it }
         capture = AudioCapture()
         val spectrumBands = deviceProfile?.spectrumBands ?: 20
         analyzer = AudioAnalyzer(spectrumBands = spectrumBands)
@@ -167,6 +171,7 @@ class GlyphSenseService : Service() {
         Log.d(TAG, "onDestroy")
         stopPipeline()
         controller?.release()
+        flashController?.stop()
         _isRunning.value = false
         scope.coroutineContext[Job]?.cancel()
         super.onDestroy()
@@ -199,6 +204,11 @@ class GlyphSenseService : Service() {
                     if (_settings.value.glyphsOutputEnabled) {
                         controller?.setFrameColors(driver.render(analysis, _settings.value))
                     }
+                    if (_settings.value.flashEnabled) {
+                        flashController?.render(analysis, _settings.value.flashIntensity)
+                    } else {
+                        flashController?.stop() // torch off promptly when toggled off mid-session
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "pipeline error: ${e.message}", e)
@@ -211,6 +221,7 @@ class GlyphSenseService : Service() {
         pipelineJob = null
         capture.stop()
         controller?.setFrameColors(driver.blankFrame())
+        flashController?.stop()
         _isRunning.value = false
         // Capture has fully stopped — drop all tokens so a later acquire restarts cleanly,
         // even for stop paths that bypass release() (the notification action, an external kill).
