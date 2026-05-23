@@ -1,6 +1,7 @@
 package be.pocito.glyphsense
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -85,14 +86,44 @@ import kotlin.math.roundToInt
 private enum class Tab { Beacon, Show, Lights }
 
 class MainActivity : ComponentActivity() {
+
+    // Bumped each time a widget tap asks us to open the Beacon; the composition observes it.
+    private val beaconLaunchTick = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Load persisted settings up front so a widget-driven Beacon launch reads the real
+        // beaconReactToSound (MainScreen's own load runs only after the first composition).
+        GlyphSenseService.loadSettingsIfNeeded(this)
+        consumeBeaconLaunch(intent)
         setContent {
             GlyphSenseTheme {
                 val context = LocalContext.current
                 var partyMode by rememberSaveable { mutableStateOf(false) }
                 var showBeacon by rememberSaveable { mutableStateOf(false) }
+
+                val launchBeacon = {
+                    // Reactive Beacon needs audio; acquire only when React-to-sound is
+                    // on AND we hold RECORD_AUDIO. Without it we still show the Beacon
+                    // statically — no microphone foreground service (which would crash
+                    // on API 34+), and nothing to release on dismiss.
+                    val s = GlyphSenseService.settings.value
+                    val micGranted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (s.beaconReactToSound && micGranted) {
+                        GlyphSenseService.acquire(context, GlyphSenseService.Consumer.BEACON)
+                    }
+                    partyMode = false
+                    showBeacon = true
+                }
+
+                // A widget tap (cold start or while running) requests the Beacon via this tick.
+                LaunchedEffect(beaconLaunchTick.intValue) {
+                    if (beaconLaunchTick.intValue > 0) launchBeacon()
+                }
+
                 Box(Modifier.fillMaxSize()) {
                     MainScreen(
                         onLaunchParty = {
@@ -101,21 +132,7 @@ class MainActivity : ComponentActivity() {
                             showBeacon = false
                             partyMode = true
                         },
-                        onLaunchBeacon = {
-                            // Reactive Beacon needs audio; acquire only when React-to-sound is
-                            // on AND we hold RECORD_AUDIO. Without it we still show the Beacon
-                            // statically — no microphone foreground service (which would crash
-                            // on API 34+), and nothing to release on dismiss.
-                            val s = GlyphSenseService.settings.value
-                            val micGranted = ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.RECORD_AUDIO,
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (s.beaconReactToSound && micGranted) {
-                                GlyphSenseService.acquire(context, GlyphSenseService.Consumer.BEACON)
-                            }
-                            partyMode = false
-                            showBeacon = true
-                        },
+                        onLaunchBeacon = launchBeacon,
                     )
                     // Mutually exclusive overlays — Beacon wins if both flags somehow get set.
                     // Each overlay releases only the consumer it acquired; a static Beacon
@@ -140,15 +157,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // A widget tap while we're already alive (foreground or background) arrives here thanks
+    // to singleTop; refresh the intent and honour the Beacon request without a new instance.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeBeaconLaunch(intent)
+    }
+
+    // Honour a widget "launch Beacon" intent once, then strip the flag so a later rotation
+    // or return-from-background does not replay it (showBeacon itself is rememberSaveable).
+    private fun consumeBeaconLaunch(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_LAUNCH_BEACON, false) == true) {
+            intent.removeExtra(EXTRA_LAUNCH_BEACON)
+            beaconLaunchTick.intValue++
+        }
+    }
+
     // Release overlay consumers on a real teardown (not a rotation) so a killed Activity
     // never leaves the mic captured. The persistent session is intentionally left running —
-    // it survives screen lock and is owned by the Lights Start/Stop and the home-screen widget.
+    // it survives screen lock and is owned by the Lights Start/Stop.
     override fun onDestroy() {
         if (!isChangingConfigurations) {
             GlyphSenseService.release(this, GlyphSenseService.Consumer.SHOW)
             GlyphSenseService.release(this, GlyphSenseService.Consumer.BEACON)
         }
         super.onDestroy()
+    }
+
+    companion object {
+        /** Widget → MainActivity extra: open straight into the Beacon overlay. */
+        const val EXTRA_LAUNCH_BEACON = "be.pocito.glyphsense.LAUNCH_BEACON"
     }
 }
 

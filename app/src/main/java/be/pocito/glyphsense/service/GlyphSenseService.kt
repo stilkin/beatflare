@@ -23,7 +23,6 @@ import be.pocito.glyphsense.glyph.GlyphDriver
 import be.pocito.glyphsense.model.DeviceProfile
 import be.pocito.glyphsense.model.SettingsStore
 import be.pocito.glyphsense.model.VisualizerSettings
-import be.pocito.glyphsense.widget.GlyphSenseWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -195,7 +194,6 @@ class GlyphSenseService : Service() {
             return
         }
         _isRunning.value = true
-        GlyphSenseWidget.notifyStateChanged(applicationContext)
         pipelineJob = scope.launch {
             try {
                 capture.buffers.collect { buf ->
@@ -226,7 +224,6 @@ class GlyphSenseService : Service() {
         // Capture has fully stopped — drop all tokens so a later acquire restarts cleanly,
         // even for stop paths that bypass release() (the notification action, an external kill).
         consumers.clear()
-        GlyphSenseWidget.notifyStateChanged(applicationContext)
     }
 
     // ─────────────────────────── Notification ───────────────────────────
