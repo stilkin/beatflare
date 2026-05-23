@@ -1,4 +1,11 @@
-## ADDED Requirements
+# audio-capture Specification
+
+## Purpose
+The microphone capture and analysis pipeline — continuous AudioRecord capture,
+real-time FFT, frequency-band splitting, adaptive volume normalization, and
+RECORD_AUDIO permission handling.
+
+## Requirements
 
 ### Requirement: Continuous microphone audio capture
 The system SHALL capture audio from the device microphone using `AudioRecord` at 44100 Hz, mono, PCM 16-bit. Capture SHALL run continuously while the visualizer service is active.

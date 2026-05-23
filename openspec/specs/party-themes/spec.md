@@ -1,4 +1,10 @@
-## ADDED Requirements
+# party-themes Specification
+
+## Purpose
+The selectable color themes for the front-screen Show visualization — the theme
+catalog, each theme's color/brightness strategy, and the quiet-state baseline pulse.
+
+## Requirements
 
 ### Requirement: Selectable party mode themes
 The system SHALL provide multiple color themes for the front-screen party mode visualization. The user SHALL be able to select a theme from the settings panel.

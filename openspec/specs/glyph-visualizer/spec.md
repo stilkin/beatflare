@@ -1,4 +1,10 @@
-## ADDED Requirements
+# glyph-visualizer Specification
+
+## Purpose
+Driving the Nothing glyph LEDs from the audio analysis — frequency-band-to-zone
+mapping, per-LED brightness control, Glyph SDK lifecycle, and target refresh rate.
+
+## Requirements
 
 ### Requirement: LED zone mapping
 The system SHALL map audio frequency bands to the Nothing Phone (3a) glyph zones as follows:

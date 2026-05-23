@@ -1,4 +1,10 @@
-## ADDED Requirements
+# settings-persistence Specification
+
+## Purpose
+Persisting user settings to local storage and restoring them on launch — what is
+persisted, save-on-change behavior, and backwards-compatible defaults.
+
+## Requirements
 
 ### Requirement: Settings survive app restart
 The system SHALL persist all user settings to local storage. Persisted settings SHALL include: brightness, zone toggles, selected theme, custom Mono color, party-overlay text, and the Glyphs / Party output toggles. Settings SHALL be restored when the app or service starts.
@@ -37,8 +43,6 @@ The system SHALL save settings immediately when the user changes any value (not 
 #### Scenario: Setting saved immediately
 - **WHEN** the user drags the brightness slider
 - **THEN** the new brightness value is persisted before the user exits the app
-
-## MODIFIED Requirements
 
 ### Requirement: Guard glyph initialization for non-Nothing devices
 The system SHALL detect whether the device is a Nothing Phone. If not, the system SHALL skip glyph SDK initialization and run the audio pipeline with front-screen visualization only.

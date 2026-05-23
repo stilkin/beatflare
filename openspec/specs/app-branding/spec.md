@@ -1,4 +1,11 @@
-## ADDED Requirements
+# app-branding Specification
+
+## Purpose
+The app's visual identity and UI shell — the adaptive launcher icon, accent color
+palette, card-based tabbed layout, debug section, and notification small-icon, plus
+where those styles are applied across the UI and widget.
+
+## Requirements
 
 ### Requirement: Custom app icon
 The system SHALL use a custom adaptive icon with separate vector foreground and background layers. The icon SHALL be a flat-design rendering (no photorealistic shading) so it can be expressed entirely as Android VectorDrawable XML. Raster mipmap variants SHALL NOT be used.
@@ -51,8 +58,6 @@ The system SHALL provide a dedicated monochrome vector drawable for the foregrou
 #### Scenario: Notification renders recognizable icon
 - **WHEN** the visualizer is running and the foreground notification is visible
 - **THEN** the status bar shows a recognizable BeatFlare silhouette, not a generic white blob
-
-## MODIFIED Requirements
 
 ### Requirement: Widget reflects current state
 The widget SHALL use the accent color palette for its running-state background instead of the current green.

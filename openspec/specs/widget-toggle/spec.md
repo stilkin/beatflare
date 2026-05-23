@@ -1,4 +1,10 @@
-## ADDED Requirements
+# widget-toggle Specification
+
+## Purpose
+The home-screen widget that starts and stops the visualizer with a single tap and
+reflects the current running state.
+
+## Requirements
 
 ### Requirement: Home screen widget
 The system SHALL provide an Android home screen widget that allows the user to start and stop the visualizer service with a single tap.
