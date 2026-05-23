@@ -52,14 +52,13 @@ class GlyphSenseWidget : AppWidgetProvider() {
     }
 
     private fun handleToggle(context: Context) {
-        val running = GlyphSenseService.isRunning.value
-        if (running) {
-            context.startService(GlyphSenseService.intentStop(context))
+        // The widget is the persistent consumer's other owner (alongside the Lights
+        // Start/Stop). The service broadcasts STATE_CHANGED on the real transition → refreshAll.
+        if (GlyphSenseService.isRunning.value) {
+            GlyphSenseService.release(context, GlyphSenseService.Consumer.PERSISTENT)
         } else {
-            context.startForegroundService(GlyphSenseService.intentStart(context))
+            GlyphSenseService.acquire(context, GlyphSenseService.Consumer.PERSISTENT)
         }
-        // The service will broadcast STATE_CHANGED when it actually starts/stops,
-        // which triggers refreshAll.
     }
 
     private fun refreshAll(context: Context) {

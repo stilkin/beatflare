@@ -48,6 +48,9 @@ import kotlinx.coroutines.launch
  */
 class GlyphSenseService : Service() {
 
+    /** Who currently needs the mic. Capture runs iff this set is non-empty. */
+    enum class Consumer { PERSISTENT, SHOW, BEACON }
+
     companion object {
         private const val TAG = "GlyphSenseService"
         private const val CHANNEL_ID = "glyphsense_foreground"
@@ -96,6 +99,26 @@ class GlyphSenseService : Service() {
 
         fun intentStop(context: Context): Intent =
             Intent(context, GlyphSenseService::class.java).setAction(ACTION_STOP)
+
+        // ─────────────────── Capture consumers ───────────────────
+        // The mic runs iff at least one consumer needs it; each consumer releases only
+        // what it started, so an overlay never tears down a persistent session (and vice
+        // versa). All calls are on the main thread, so the plain Set needs no locking.
+        private val consumers = mutableSetOf<Consumer>()
+
+        /** Mark [consumer] as needing the mic, starting capture if it was idle. Idempotent. */
+        fun acquire(context: Context, consumer: Consumer) {
+            val wasEmpty = consumers.isEmpty()
+            consumers.add(consumer)
+            if (wasEmpty) context.startForegroundService(intentStart(context))
+        }
+
+        /** Release [consumer]; stop capture only if no other consumer still needs it. */
+        fun release(context: Context, consumer: Consumer) {
+            if (consumers.remove(consumer) && consumers.isEmpty()) {
+                context.startService(intentStop(context))
+            }
+        }
     }
 
     private var controller: GlyphController? = null
@@ -189,6 +212,9 @@ class GlyphSenseService : Service() {
         capture.stop()
         controller?.setFrameColors(driver.blankFrame())
         _isRunning.value = false
+        // Capture has fully stopped — drop all tokens so a later acquire restarts cleanly,
+        // even for stop paths that bypass release() (the notification action, an external kill).
+        consumers.clear()
         GlyphSenseWidget.notifyStateChanged(applicationContext)
     }
 
