@@ -23,7 +23,7 @@ The system SHALL initialize `GlyphManager` when the service starts, call `regist
 
 #### Scenario: Service connects to glyph SDK
 - **WHEN** the visualizer service starts
-- **THEN** GlyphManager is initialized, registered for device 24111 (Phone 3a), and a session is opened
+- **THEN** GlyphManager is initialized, registered for the detected Nothing device (the ID selected from the active device profile), and a session is opened
 
 #### Scenario: Service disconnects from glyph SDK
 - **WHEN** the visualizer service stops

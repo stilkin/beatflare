@@ -46,6 +46,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,10 +65,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import be.pocito.glyphsense.flash.FlashController
 import be.pocito.glyphsense.model.BeaconTextColor
 import be.pocito.glyphsense.model.PartyTheme
@@ -286,24 +290,34 @@ private fun navColors() = NavigationBarItemDefaults.colors(
 @Composable
 private fun AudioPermissionGate(content: @Composable (canStart: Boolean) -> Unit) {
     val context = LocalContext.current
-    var micGranted by remember {
-        mutableStateOf(
+    val checkMic = {
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val checkNotif = {
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
-                context, Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED,
-        )
+                context, Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
     }
-    var notifGranted by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS,
-                ) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            },
-        )
+    var micGranted by remember { mutableStateOf(checkMic()) }
+    var notifGranted by remember { mutableStateOf(checkNotif()) }
+
+    // Re-check on resume so granting a permission from system Settings (after an in-app
+    // denial) is reflected without having to recreate the activity.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                micGranted = checkMic()
+                notifGranted = checkNotif()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { micGranted = it }

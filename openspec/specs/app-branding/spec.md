@@ -59,13 +59,6 @@ The system SHALL provide a dedicated monochrome vector drawable for the foregrou
 - **WHEN** the visualizer is running and the foreground notification is visible
 - **THEN** the status bar shows a recognizable BeatFlare silhouette, not a generic white blob
 
-### Requirement: Widget reflects current state
-The widget SHALL use the accent color palette for its running-state background instead of the current green.
-
-#### Scenario: Widget running state
-- **WHEN** the visualizer is running
-- **THEN** the widget background uses the primary accent color
-
 ### Requirement: Full-screen color visualization
 The spectrum bars in the analysis display SHALL use the primary accent color instead of the hardcoded cyan (#4FC3F7).
 
