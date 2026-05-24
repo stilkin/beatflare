@@ -94,12 +94,12 @@ class FlashController(context: Context) {
         if (!torchOn && lastLevel <= 0 && !lastOn) return // already off
         try {
             cameraManager.setTorchMode(id, false)
+            torchOn = false
+            lastLevel = 0
+            lastOn = false
         } catch (e: CameraAccessException) {
             Log.w(TAG, "torch off failed: ${e.message}")
         }
-        torchOn = false
-        lastLevel = 0
-        lastOn = false
     }
 
     companion object {
@@ -117,9 +117,14 @@ class FlashController(context: Context) {
         }
 
         private fun findFlashCamera(cm: CameraManager): String? = try {
-            cm.cameraIdList.firstOrNull { id ->
+            val flashCameras = cm.cameraIdList.filter { id ->
                 cm.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
             }
+            // Prefer a rear-facing torch (the face-down use case); fall back to any flash.
+            flashCameras.firstOrNull { id ->
+                cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) ==
+                    CameraCharacteristics.LENS_FACING_BACK
+            } ?: flashCameras.firstOrNull()
         } catch (e: CameraAccessException) {
             Log.w(TAG, "camera enumeration failed: ${e.message}")
             null

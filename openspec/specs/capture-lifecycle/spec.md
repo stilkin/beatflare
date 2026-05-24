@@ -34,14 +34,14 @@ When a consumer is released, the system SHALL stop capture only if no other cons
 - **THEN** capture continues for the overlay until the overlay is also dismissed
 
 ### Requirement: Persistent capture session survives screen lock
-The persistent consumer SHALL be started and stopped only by explicit user action — the Start/Stop control or the home-screen widget — and SHALL keep capture running while the screen is off, independent of any overlay.
+The persistent consumer SHALL be started and stopped only by explicit user action — the Start/Stop control on the Lights tab — and SHALL keep capture running while the screen is off, independent of any overlay.
 
 #### Scenario: Persistent session runs with screen off
 - **WHEN** the user starts the persistent session and turns off the screen
 - **THEN** capture continues and the hands-off output keeps visualizing
 
 #### Scenario: Explicit stop ends the persistent session
-- **WHEN** the user taps Stop (or toggles the widget off)
+- **WHEN** the user taps Stop on the Lights tab
 - **THEN** the persistent consumer is released and, if it was the last consumer, capture stops
 
 ### Requirement: Overlay capture is bound to overlay visibility

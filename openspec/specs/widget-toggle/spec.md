@@ -1,8 +1,8 @@
 # widget-toggle Specification
 
 ## Purpose
-The home-screen widget that starts and stops the visualizer with a single tap and
-reflects the current running state.
+The home-screen widget that launches the Beacon overlay with a single tap using
+the user's persisted Beacon settings.
 ## Requirements
 ### Requirement: Home screen widget
 The system SHALL provide an Android home screen widget that launches the Beacon overlay with a single tap. Tapping the widget SHALL open the app's main activity directly into the Beacon overlay, rendered with the user's currently persisted Beacon settings (background hue, centred text, text colour, and react-to-sound). The widget SHALL be a stateless launcher: it SHALL NOT start or stop the persistent visualizer service and SHALL NOT reflect a running/stopped state.

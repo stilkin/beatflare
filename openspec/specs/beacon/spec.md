@@ -4,11 +4,11 @@
 TBD - created by archiving change beacon-tab-rework. Update Purpose after archive.
 ## Requirements
 ### Requirement: Beacon tab in main navigation
-The system SHALL include a Beacon tab as the leftmost destination in the bottom navigation, with order `Beacon | Play | Show | Glyphs`. Play SHALL remain the default selected tab on app launch.
+The system SHALL include a Beacon tab as the leftmost destination in the bottom navigation, with order `Beacon | Show | Lights`. Beacon SHALL be the default selected tab on app launch. The Lights tab SHALL be present only on devices with a rear output (Nothing glyphs or a camera torch).
 
 #### Scenario: Beacon tab is reachable
 - **WHEN** the user opens the app
-- **THEN** the bottom navigation shows four tabs in order Beacon, Play, Show, Glyphs, and Play is selected by default
+- **THEN** the bottom navigation shows the Beacon, Show, and Lights tabs (Lights only when a rear output exists), and Beacon is selected by default
 
 #### Scenario: Switching to Beacon
 - **WHEN** the user taps the Beacon tab
@@ -51,7 +51,7 @@ The "Light up beacon" button SHALL auto-start the audio service when "React to s
 
 #### Scenario: Beacon dismiss leaves service running
 - **WHEN** the user dismisses the Beacon overlay
-- **THEN** the audio service continues running if it was running, and only the Play tab Start/Stop can stop it
+- **THEN** the audio service continues running if it was running, and only the Lights tab Start/Stop can stop it
 
 ### Requirement: Beacon overlay dismissal
 The Beacon overlay SHALL be dismissible by tapping anywhere on the screen or by pressing the system back gesture/button. The overlay SHALL display a faint "Tap to exit" hint near the bottom.
@@ -87,11 +87,11 @@ The Beacon overlay and the Show overlay SHALL NOT be displayed simultaneously. L
 - **THEN** the Show overlay is dismissed and the Beacon overlay is shown
 
 #### Scenario: Show launched over Beacon
-- **WHEN** the Beacon overlay is visible and the user taps Start on the Play tab with the Show output enabled
+- **WHEN** the Beacon overlay is visible and the user launches the Show overlay from the Show tab
 - **THEN** the Beacon overlay is dismissed and the Show overlay is shown
 
 ### Requirement: Beacon is independent of Glyphs
-Glyph LED output SHALL be controlled solely by the Glyphs output toggle on the Play tab. Launching, dismissing, or configuring Beacon SHALL NOT affect glyph output state.
+Glyph LED output SHALL be controlled solely by the Glyphs output toggle on the Lights tab. Launching, dismissing, or configuring Beacon SHALL NOT affect glyph output state.
 
 #### Scenario: Glyphs continue under Beacon
 - **WHEN** the audio service is running with Glyphs enabled and the user launches Beacon
