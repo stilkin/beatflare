@@ -67,10 +67,3 @@ Each theme entry SHALL display its name and a one-line subtitle describing its b
 #### Scenario: Subtitle visible per theme
 - **WHEN** the Show tab is rendered
 - **THEN** each theme row SHALL display a one-line subtitle, not just the theme name
-
-## REMOVED Requirements
-
-### Requirement: Monochrome theme and custom color picker
-**Reason**: The "solid colour with audio-modulated brightness" idea was the Monochrome theme. That role now belongs to the Beacon overlay, with a clearer "React to sound" toggle that lets users opt out of audio reactivity entirely.
-
-**Migration**: Users with `partyTheme = MONOCHROME` are migrated to `SPECTRUM` on next launch. The saved Mono colour is preserved as the Beacon background hue (saturation is discarded — Beacon uses a hue-only picker). See `settings-persistence` for details.

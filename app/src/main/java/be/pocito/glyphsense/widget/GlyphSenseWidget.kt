@@ -3,36 +3,27 @@ package be.pocito.glyphsense.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import be.pocito.glyphsense.MainActivity
 import be.pocito.glyphsense.R
-import be.pocito.glyphsense.service.GlyphSenseService
 
 /**
- * Home screen widget: single tap to start/stop the GlyphSense visualizer.
- *
- * Shows a dark rounded rectangle with "GlyphSense" + status text.
- * Background turns green when running, dark when stopped.
- *
- * The widget is updated in two ways:
- *  1. [onUpdate] — called by the system on widget creation / periodic refresh
- *  2. [ACTION_STATE_CHANGED] broadcast — sent by [GlyphSenseService] when it starts/stops
+ * Home screen widget: a single tap opens the app straight into the Beacon overlay,
+ * rendered with the user's currently persisted Beacon settings (hue, text, colour,
+ * react-to-sound). It is a stateless launcher — it does not start or stop the
+ * persistent visualizer service and reflects no running/stopped state; the Beacon is
+ * dismissed on the screen (back / tap), not via the widget.
  */
 class GlyphSenseWidget : AppWidgetProvider() {
 
     companion object {
-        const val ACTION_TOGGLE = "be.pocito.glyphsense.widget.TOGGLE"
-        const val ACTION_STATE_CHANGED = "be.pocito.glyphsense.widget.STATE_CHANGED"
-
-        /** Call from the service to push a visual refresh to all widget instances. */
-        fun notifyStateChanged(context: Context) {
-            val intent = Intent(context, GlyphSenseWidget::class.java).apply {
-                action = ACTION_STATE_CHANGED
-            }
-            context.sendBroadcast(intent)
-        }
+        // Distinct from the service notification's PendingIntent request codes (0 = content,
+        // 1 = stop), both also getActivity → MainActivity. A shared request code makes the
+        // PendingIntents filterEquals-equal, so the notification's FLAG_UPDATE_CURRENT would
+        // overwrite our intent and strip EXTRA_LAUNCH_BEACON — silently breaking the launch.
+        private const val REQUEST_LAUNCH_BEACON = 100
     }
 
     override fun onUpdate(
@@ -43,53 +34,21 @@ class GlyphSenseWidget : AppWidgetProvider() {
         for (id in widgetIds) updateWidget(context, manager, id)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        when (intent.action) {
-            ACTION_TOGGLE -> handleToggle(context)
-            ACTION_STATE_CHANGED -> refreshAll(context)
-        }
-    }
-
-    private fun handleToggle(context: Context) {
-        val running = GlyphSenseService.isRunning.value
-        if (running) {
-            context.startService(GlyphSenseService.intentStop(context))
-        } else {
-            context.startForegroundService(GlyphSenseService.intentStart(context))
-        }
-        // The service will broadcast STATE_CHANGED when it actually starts/stops,
-        // which triggers refreshAll.
-    }
-
-    private fun refreshAll(context: Context) {
-        val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(
-            ComponentName(context, GlyphSenseWidget::class.java)
-        )
-        for (id in ids) updateWidget(context, manager, id)
-    }
-
     private fun updateWidget(
         context: Context,
         manager: AppWidgetManager,
         widgetId: Int,
     ) {
-        val running = GlyphSenseService.isRunning.value
         val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
-        // Visual state
-        val bgRes = if (running) R.drawable.widget_bg_running else R.drawable.widget_bg_stopped
-        val statusText = if (running) "Running — tap to stop" else "Tap to start"
-        views.setInt(R.id.widget_root, "setBackgroundResource", bgRes)
-        views.setTextViewText(R.id.widget_status, statusText)
-
-        // Click → toggle
-        val toggleIntent = Intent(context, GlyphSenseWidget::class.java).apply {
-            action = ACTION_TOGGLE
+        // Click → open MainActivity directly into the Beacon overlay. singleTop +
+        // SINGLE_TOP routes a tap while we're already alive through onNewIntent.
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_LAUNCH_BEACON, true)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
-        val pi = PendingIntent.getBroadcast(
-            context, 0, toggleIntent,
+        val pi = PendingIntent.getActivity(
+            context, REQUEST_LAUNCH_BEACON, launchIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         views.setOnClickPendingIntent(R.id.widget_root, pi)

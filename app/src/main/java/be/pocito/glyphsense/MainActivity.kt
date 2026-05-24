@@ -1,6 +1,7 @@
 package be.pocito.glyphsense
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -45,6 +46,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,10 +65,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import be.pocito.glyphsense.flash.FlashController
 import be.pocito.glyphsense.model.BeaconTextColor
 import be.pocito.glyphsense.model.PartyTheme
 import be.pocito.glyphsense.model.VisualizerSettings
@@ -81,80 +87,130 @@ import be.pocito.glyphsense.ui.theme.BeatFlareOrange
 import be.pocito.glyphsense.ui.theme.GlyphSenseTheme
 import kotlin.math.roundToInt
 
-private enum class Tab { Beacon, Play, Show, Glyphs }
+private enum class Tab { Beacon, Show, Lights }
 
 class MainActivity : ComponentActivity() {
+
+    // Bumped each time a widget tap asks us to open the Beacon; the composition observes it.
+    private val beaconLaunchTick = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Load persisted settings up front so a widget-driven Beacon launch reads the real
+        // beaconReactToSound (MainScreen's own load runs only after the first composition).
+        GlyphSenseService.loadSettingsIfNeeded(this)
+        consumeBeaconLaunch(intent)
         setContent {
             GlyphSenseTheme {
                 val context = LocalContext.current
-                var partyMode by remember { mutableStateOf(false) }
-                var showBeacon by remember { mutableStateOf(false) }
-                // True when launching the Beacon is what started the audio service.
-                // Dismissing then stops it again, restoring the prior state — we only
-                // ever stop what we started (a running Glyphs/Show session is left alone).
-                var beaconStartedService by remember { mutableStateOf(false) }
+                var partyMode by rememberSaveable { mutableStateOf(false) }
+                var showBeacon by rememberSaveable { mutableStateOf(false) }
+
+                val launchBeacon = {
+                    // Reactive Beacon needs audio; acquire only when React-to-sound is
+                    // on AND we hold RECORD_AUDIO. Without it we still show the Beacon
+                    // statically — no microphone foreground service (which would crash
+                    // on API 34+), and nothing to release on dismiss.
+                    val s = GlyphSenseService.settings.value
+                    val micGranted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (s.beaconReactToSound && micGranted) {
+                        GlyphSenseService.acquire(context, GlyphSenseService.Consumer.BEACON)
+                    }
+                    partyMode = false
+                    showBeacon = true
+                }
+
+                // A widget tap (cold start or while running) requests the Beacon via this tick.
+                LaunchedEffect(beaconLaunchTick.intValue) {
+                    if (beaconLaunchTick.intValue > 0) launchBeacon()
+                }
+
                 Box(Modifier.fillMaxSize()) {
                     MainScreen(
                         onLaunchParty = {
+                            // Show is always audio-reactive, so it acquires capture.
+                            GlyphSenseService.acquire(context, GlyphSenseService.Consumer.SHOW)
                             showBeacon = false
                             partyMode = true
                         },
-                        onStopParty = { partyMode = false },
-                        onLaunchBeacon = {
-                            // Reactive Beacon needs audio — start capture only if nothing
-                            // else is already running it AND we hold RECORD_AUDIO. Without
-                            // the permission we still show the Beacon (statically); we never
-                            // start a microphone foreground service, which throws on API 34+.
-                            val s = GlyphSenseService.settings.value
-                            val micGranted = ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.RECORD_AUDIO,
-                            ) == PackageManager.PERMISSION_GRANTED
-                            beaconStartedService =
-                                s.beaconReactToSound && micGranted && !GlyphSenseService.isRunning.value
-                            if (beaconStartedService) {
-                                context.startForegroundService(GlyphSenseService.intentStart(context))
-                            }
-                            partyMode = false
-                            showBeacon = true
-                        },
+                        onLaunchBeacon = launchBeacon,
                     )
                     // Mutually exclusive overlays — Beacon wins if both flags somehow get set.
+                    // Each overlay releases only the consumer it acquired; a static Beacon
+                    // acquired nothing, so its release is a harmless no-op.
                     if (showBeacon) {
                         BeaconOverlay(
                             onDismiss = {
                                 showBeacon = false
-                                if (beaconStartedService) {
-                                    context.startService(GlyphSenseService.intentStop(context))
-                                    beaconStartedService = false
-                                }
+                                GlyphSenseService.release(context, GlyphSenseService.Consumer.BEACON)
                             },
                         )
                     } else if (partyMode) {
-                        PartyOverlay(onDismiss = { partyMode = false })
+                        PartyOverlay(
+                            onDismiss = {
+                                partyMode = false
+                                GlyphSenseService.release(context, GlyphSenseService.Consumer.SHOW)
+                            },
+                        )
                     }
                 }
             }
         }
+    }
+
+    // A widget tap while we're already alive (foreground or background) arrives here thanks
+    // to singleTop; refresh the intent and honour the Beacon request without a new instance.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeBeaconLaunch(intent)
+    }
+
+    // Honour a widget "launch Beacon" intent once, then strip the flag so a later rotation
+    // or return-from-background does not replay it (showBeacon itself is rememberSaveable).
+    private fun consumeBeaconLaunch(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_LAUNCH_BEACON, false) == true) {
+            intent.removeExtra(EXTRA_LAUNCH_BEACON)
+            beaconLaunchTick.intValue++
+        }
+    }
+
+    // Release overlay consumers on a real teardown (not a rotation) so a killed Activity
+    // never leaves the mic captured. The persistent session is intentionally left running —
+    // it survives screen lock and is owned by the Lights Start/Stop.
+    override fun onDestroy() {
+        if (!isChangingConfigurations) {
+            GlyphSenseService.release(this, GlyphSenseService.Consumer.SHOW)
+            GlyphSenseService.release(this, GlyphSenseService.Consumer.BEACON)
+        }
+        super.onDestroy()
+    }
+
+    companion object {
+        /** Widget → MainActivity extra: open straight into the Beacon overlay. */
+        const val EXTRA_LAUNCH_BEACON = "be.pocito.glyphsense.LAUNCH_BEACON"
     }
 }
 
 @Composable
 fun MainScreen(
     onLaunchParty: () -> Unit = {},
-    onStopParty: () -> Unit = {},
     onLaunchBeacon: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val isNothingDevice = GlyphSenseService.isNothingDevice
+    val hasFlash = remember { FlashController.isAvailable(context) }
+    // The Lights tab exists wherever there's a rear output: glyphs (Nothing) or a torch.
+    val showLights = isNothingDevice || hasFlash
 
     LaunchedEffect(Unit) { GlyphSenseService.loadSettingsIfNeeded(context) }
 
-    var selectedTab by rememberSaveable { mutableStateOf(Tab.Play) }
-    // Glyphs tab disappears on non-Nothing devices — fall back gracefully.
-    if (selectedTab == Tab.Glyphs && !isNothingDevice) selectedTab = Tab.Play
+    var selectedTab by rememberSaveable { mutableStateOf(Tab.Beacon) }
+    // Fall back gracefully if Lights is somehow selected on a device without a rear output.
+    if (selectedTab == Tab.Lights && !showLights) selectedTab = Tab.Beacon
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -162,7 +218,7 @@ fun MainScreen(
         bottomBar = {
             BottomNav(
                 selected = selectedTab,
-                showGlyphs = isNothingDevice,
+                showLights = showLights,
                 onSelect = { selectedTab = it },
             )
         },
@@ -172,14 +228,13 @@ fun MainScreen(
             .padding(innerPadding)
         when (selectedTab) {
             Tab.Beacon -> BeaconTab(tabModifier, onLaunchBeacon = onLaunchBeacon)
-            Tab.Play -> PlayTab(
-                modifier = tabModifier,
-                isNothingDevice = isNothingDevice,
+            Tab.Show -> ShowTab(tabModifier, onLaunchShow = onLaunchParty)
+            Tab.Lights -> LightsTab(
+                tabModifier,
                 onLaunchParty = onLaunchParty,
-                onStopParty = onStopParty,
+                isNothingDevice = isNothingDevice,
+                hasFlash = hasFlash,
             )
-            Tab.Show -> ShowTab(tabModifier)
-            Tab.Glyphs -> GlyphsTab(tabModifier)
         }
     }
 }
@@ -187,7 +242,7 @@ fun MainScreen(
 // ─────────────────── Bottom navigation ───────────────────
 
 @Composable
-private fun BottomNav(selected: Tab, showGlyphs: Boolean, onSelect: (Tab) -> Unit) {
+private fun BottomNav(selected: Tab, showLights: Boolean, onSelect: (Tab) -> Unit) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
         NavigationBarItem(
             selected = selected == Tab.Beacon,
@@ -197,25 +252,18 @@ private fun BottomNav(selected: Tab, showGlyphs: Boolean, onSelect: (Tab) -> Uni
             colors = navColors(),
         )
         NavigationBarItem(
-            selected = selected == Tab.Play,
-            onClick = { onSelect(Tab.Play) },
-            icon = { Text("▶", fontSize = 18.sp) },
-            label = { Text("Play") },
-            colors = navColors(),
-        )
-        NavigationBarItem(
             selected = selected == Tab.Show,
             onClick = { onSelect(Tab.Show) },
             icon = { Text("✦", fontSize = 20.sp) },
             label = { Text("Show") },
             colors = navColors(),
         )
-        if (showGlyphs) {
+        if (showLights) {
             NavigationBarItem(
-                selected = selected == Tab.Glyphs,
-                onClick = { onSelect(Tab.Glyphs) },
+                selected = selected == Tab.Lights,
+                onClick = { onSelect(Tab.Lights) },
                 icon = { Text("✱", fontSize = 20.sp) },
-                label = { Text("Glyphs") },
+                label = { Text("Lights") },
                 colors = navColors(),
             )
         }
@@ -233,36 +281,43 @@ private fun navColors() = NavigationBarItemDefaults.colors(
 
 // ─────────────────── Tabs ───────────────────
 
+/**
+ * Renders "grant permission" buttons for any missing audio/notification permission, then
+ * invokes [content] with whether both are granted so the caller can gate its Start action.
+ * Shared by the persistent Start (Lights) and the Show launch — both start a microphone
+ * foreground service, which crashes on API 34+ without RECORD_AUDIO.
+ */
 @Composable
-private fun PlayTab(
-    modifier: Modifier,
-    isNothingDevice: Boolean,
-    onLaunchParty: () -> Unit,
-    onStopParty: () -> Unit,
-) {
+private fun AudioPermissionGate(content: @Composable (canStart: Boolean) -> Unit) {
     val context = LocalContext.current
-    val isRunning by GlyphSenseService.isRunning.collectAsState()
-    val settings by GlyphSenseService.settings.collectAsState()
-
-    // Permissions
-    var micGranted by remember {
-        mutableStateOf(
+    val checkMic = {
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val checkNotif = {
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
-                context, Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED,
-        )
+                context, Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
     }
-    var notifGranted by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS,
-                ) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            },
-        )
+    var micGranted by remember { mutableStateOf(checkMic()) }
+    var notifGranted by remember { mutableStateOf(checkNotif()) }
+
+    // Re-check on resume so granting a permission from system Settings (after an in-app
+    // denial) is reflected without having to recreate the activity.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                micGranted = checkMic()
+                notifGranted = checkNotif()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { micGranted = it }
@@ -270,137 +325,34 @@ private fun PlayTab(
         ActivityResultContracts.RequestPermission(),
     ) { notifGranted = it }
 
-    // Live analysis
-    var bassLevel by remember { mutableStateOf(0f) }
-    var spectrum by remember { mutableStateOf(FloatArray(20)) }
-    var beatFlash by remember { mutableIntStateOf(0) }
-    var bassRaw by remember { mutableStateOf(0f) }
-    var bassFloor by remember { mutableStateOf(0f) }
-    var bassPeak by remember { mutableStateOf(0f) }
-
-    LaunchedEffect(isRunning) {
-        if (!isRunning) {
-            bassLevel = 0f; spectrum = FloatArray(20); beatFlash = 0
-            return@LaunchedEffect
-        }
-        GlyphSenseService.analysisFlow.collect { a ->
-            bassLevel = a.bassLevel
-            bassRaw = a.bassRaw
-            bassFloor = a.bassFloor
-            bassPeak = a.bassPeak
-            spectrum = a.spectrum
-            beatFlash = if (a.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
-        }
+    if (!micGranted) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) { Text("Grant mic permission") }
+    }
+    if (!notifGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) { Text("Grant notification permission") }
     }
 
     val canStart = micGranted && notifGranted
-    // On non-Nothing devices party mode is the only possible output; settings UI is hidden.
-    val partyOnTap = if (isNothingDevice) settings.partyOutputEnabled else true
+    content(canStart)
 
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        TabHeader("▶", "Play", trailing = { StatusDot(isRunning) })
-
-        VisualizerCard(
-            spectrum = spectrum,
-            bassLevel = bassLevel,
-            beatFlash = beatFlash,
-            isRunning = isRunning,
-            // Tap to (re-)launch the party overlay while running, if that output is enabled.
-            onTap = if (isRunning && partyOnTap) onLaunchParty else null,
+    if (!canStart) {
+        Text(
+            "Grant both permissions above to start.",
+            style = MaterialTheme.typography.bodySmall,
+            color = BeatFlareOnSurfaceDim,
         )
-
-        if (!micGranted) {
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) { Text("Grant mic permission") }
-        }
-        if (!notifGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) { Text("Grant notification permission") }
-        }
-
-        // Output toggles — only meaningful on Nothing devices (where Glyphs is an option).
-        if (isNothingDevice) {
-            OutputToggles(
-                glyphsEnabled = settings.glyphsOutputEnabled,
-                partyEnabled = settings.partyOutputEnabled,
-                onGlyphs = { newG ->
-                    // Never let both toggles be off — auto-flip the other.
-                    val newP = if (!newG && !settings.partyOutputEnabled) true else settings.partyOutputEnabled
-                    GlyphSenseService.updateSettings {
-                        it.copy(glyphsOutputEnabled = newG, partyOutputEnabled = newP)
-                    }
-                },
-                onParty = { newP ->
-                    val newG = if (!newP && !settings.glyphsOutputEnabled) true else settings.glyphsOutputEnabled
-                    GlyphSenseService.updateSettings {
-                        it.copy(glyphsOutputEnabled = newG, partyOutputEnabled = newP)
-                    }
-                },
-            )
-        }
-
-        GradientButton(
-            text = if (isRunning) "Stop Visualizer" else "Start Visualizer",
-            enabled = canStart,
-            isActive = isRunning,
-            onClick = {
-                if (isRunning) {
-                    onStopParty()
-                    context.startService(GlyphSenseService.intentStop(context))
-                } else {
-                    context.startForegroundService(GlyphSenseService.intentStart(context))
-                    if (partyOnTap) onLaunchParty()
-                }
-            },
-        )
-
-        if (isRunning) {
-            DebugSection(bassRaw, bassFloor, bassPeak)
-        }
-
-        if (!canStart) {
-            Text(
-                "Grant both permissions above to start.",
-                style = MaterialTheme.typography.bodySmall,
-                color = BeatFlareOnSurfaceDim,
-            )
-        }
-    }
-}
-
-@Composable
-private fun OutputToggles(
-    glyphsEnabled: Boolean,
-    partyEnabled: Boolean,
-    onGlyphs: (Boolean) -> Unit,
-    onParty: (Boolean) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            ToggleRow("Glyphs", glyphsEnabled, onGlyphs)
-            ToggleRow("Show", partyEnabled, onParty)
-        }
     }
 }
 
@@ -431,7 +383,7 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 }
 
 @Composable
-private fun ShowTab(modifier: Modifier) {
+private fun ShowTab(modifier: Modifier, onLaunchShow: () -> Unit) {
     val settings by GlyphSenseService.settings.collectAsState()
 
     Column(
@@ -463,6 +415,17 @@ private fun ShowTab(modifier: Modifier) {
                     },
                 )
             }
+        }
+
+        // Show is an on-screen overlay session: launching acquires the mic, dismissing
+        // releases it. This is also how non-Nothing devices (no Lights tab) start a Show.
+        AudioPermissionGate { canStart ->
+            GradientButton(
+                text = "Start Show",
+                enabled = canStart,
+                isActive = true,
+                onClick = onLaunchShow,
+            )
         }
     }
 }
@@ -579,8 +542,38 @@ private fun BeaconTextColorRow(selected: BeaconTextColor, onSelect: (BeaconTextC
 }
 
 @Composable
-private fun GlyphsTab(modifier: Modifier) {
+private fun LightsTab(
+    modifier: Modifier,
+    onLaunchParty: () -> Unit,
+    isNothingDevice: Boolean,
+    hasFlash: Boolean,
+) {
+    val context = LocalContext.current
+    val isRunning by GlyphSenseService.isRunning.collectAsState()
     val settings by GlyphSenseService.settings.collectAsState()
+
+    // Live analysis for the monitor card.
+    var bassLevel by remember { mutableStateOf(0f) }
+    var spectrum by remember { mutableStateOf(FloatArray(20)) }
+    var beatFlash by remember { mutableIntStateOf(0) }
+    var bassRaw by remember { mutableStateOf(0f) }
+    var bassFloor by remember { mutableStateOf(0f) }
+    var bassPeak by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(isRunning) {
+        if (!isRunning) {
+            bassLevel = 0f; spectrum = FloatArray(20); beatFlash = 0
+            return@LaunchedEffect
+        }
+        GlyphSenseService.analysisFlow.collect { a ->
+            bassLevel = a.bassLevel
+            bassRaw = a.bassRaw
+            bassFloor = a.bassFloor
+            bassPeak = a.bassPeak
+            spectrum = a.spectrum
+            beatFlash = if (a.beat) 3 else (beatFlash - 1).coerceAtLeast(0)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -588,80 +581,164 @@ private fun GlyphsTab(modifier: Modifier) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        TabHeader("✱", "Glyph Settings")
+        TabHeader("✱", "Lights", trailing = { StatusDot(isRunning) })
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        VisualizerCard(
+            spectrum = spectrum,
+            bassLevel = bassLevel,
+            beatFlash = beatFlash,
+            isRunning = isRunning,
+            // While the persistent session runs, tap the monitor to (re)launch the Show overlay.
+            onTap = if (isRunning) onLaunchParty else null,
+        )
+
+        // Glyph controls — only meaningful on Nothing phones with the LED matrix.
+        if (isNothingDevice) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
             ) {
-                Text(
-                    "Brightness",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = BeatFlareOnSurfaceDim,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val brightness = settings.brightness.coerceIn(0.05f, 1f)
-                    Slider(
-                        value = brightness,
-                        onValueChange = { v ->
-                            GlyphSenseService.updateSettings { it.copy(brightness = v) }
-                        },
-                        valueRange = 0.05f..1f,
-                        steps = 18,
-                        modifier = Modifier.weight(1f),
-                        colors = SliderDefaults.colors(
-                            thumbColor = BeatFlareMagenta,
-                            activeTrackColor = BeatFlareMagenta,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    )
                     Text(
-                        "${(brightness * 100).roundToInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
+                        "Brightness",
+                        style = MaterialTheme.typography.titleSmall,
                         color = BeatFlareOnSurfaceDim,
-                        modifier = Modifier.width(36.dp),
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val brightness = settings.brightness.coerceIn(0.05f, 1f)
+                        Slider(
+                            value = brightness,
+                            onValueChange = { v ->
+                                GlyphSenseService.updateSettings { it.copy(brightness = v) }
+                            },
+                            valueRange = 0.05f..1f,
+                            steps = 18,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = BeatFlareMagenta,
+                                activeTrackColor = BeatFlareMagenta,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        )
+                        Text(
+                            "${(brightness * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BeatFlareOnSurfaceDim,
+                            modifier = Modifier.width(36.dp),
+                        )
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        "Zones",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = BeatFlareOnSurfaceDim,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        ZoneToggle("Spectrum", settings.zoneCEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneCEnabled = v) }
+                        }
+                        ZoneToggle("Bass", settings.zoneAEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneAEnabled = v) }
+                        }
+                        ZoneToggle("Beat", settings.zoneBEnabled) { v ->
+                            GlyphSenseService.updateSettings { it.copy(zoneBEnabled = v) }
+                        }
+                    }
                 }
             }
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Flash output — the rear camera torch, available on any phone with a torch unit.
+        if (hasFlash) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
             ) {
-                Text(
-                    "Zones",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = BeatFlareOnSurfaceDim,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ZoneToggle("Spectrum", settings.zoneCEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneCEnabled = v) }
+                    Text(
+                        "Flash",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = BeatFlareOnSurfaceDim,
+                    )
+                    ToggleRow("Enabled", settings.flashEnabled) { v ->
+                        GlyphSenseService.updateSettings { it.copy(flashEnabled = v) }
                     }
-                    ZoneToggle("Bass", settings.zoneAEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneAEnabled = v) }
-                    }
-                    ZoneToggle("Beat", settings.zoneBEnabled) { v ->
-                        GlyphSenseService.updateSettings { it.copy(zoneBEnabled = v) }
+                    if (settings.flashEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val flashIntensity = settings.flashIntensity.coerceIn(0.1f, 1f)
+                            Slider(
+                                value = flashIntensity,
+                                onValueChange = { v ->
+                                    GlyphSenseService.updateSettings { it.copy(flashIntensity = v) }
+                                },
+                                valueRange = 0.1f..1f,
+                                steps = 8,
+                                modifier = Modifier.weight(1f),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = BeatFlareMagenta,
+                                    activeTrackColor = BeatFlareMagenta,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
+                            )
+                            Text(
+                                "${(flashIntensity * 100).roundToInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = BeatFlareOnSurfaceDim,
+                                modifier = Modifier.width(36.dp),
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        // The persistent session — survives screen lock, owned by this Start/Stop and the
+        // home-screen widget. On Nothing devices it drives the glyphs; Flash joins on any torch.
+        AudioPermissionGate { canStart ->
+            GradientButton(
+                text = if (isRunning) "Stop Visualizer" else "Start Visualizer",
+                enabled = canStart,
+                isActive = isRunning,
+                onClick = {
+                    if (isRunning) {
+                        GlyphSenseService.release(context, GlyphSenseService.Consumer.PERSISTENT)
+                    } else {
+                        GlyphSenseService.acquire(context, GlyphSenseService.Consumer.PERSISTENT)
+                    }
+                },
+            )
+        }
+
+        if (isRunning) {
+            DebugSection(bassRaw, bassFloor, bassPeak)
         }
     }
 }

@@ -1,18 +1,22 @@
-## ADDED Requirements
+# party-themes Specification
 
+## Purpose
+The selectable color themes for the front-screen Show visualization — the theme
+catalog, each theme's color/brightness strategy, and the quiet-state baseline pulse.
+## Requirements
 ### Requirement: Selectable party mode themes
-The system SHALL provide multiple color themes for the front-screen party mode visualization. The user SHALL be able to select a theme from the settings panel.
+The system SHALL provide multiple color themes for the Show overlay. The user SHALL be able to select a theme from the Show tab.
 
 #### Scenario: User selects a theme
-- **WHEN** the user picks "Fire" from the theme selector in settings
-- **THEN** the party mode overlay uses a red-orange-yellow palette driven by bass intensity
+- **WHEN** the user picks "Fire" from the theme list on the Show tab
+- **THEN** the Show overlay uses a red-orange-yellow palette driven by bass intensity
 
 #### Scenario: Theme persists across restarts
 - **WHEN** the user selects "Ocean" and restarts the app
 - **THEN** the "Ocean" theme is still selected
 
 ### Requirement: Built-in themes
-The system SHALL include these themes: Spectrum (default), Fire, Ocean, Monochrome, Rainbow, Strobe, Breathe, Sweep. Each theme SHALL map AudioAnalysis data and a wall-clock time value to a Color using a different strategy.
+The system SHALL include these themes: Spectrum (default), Rainbow, Fire, Ocean, Breathe, Sweep, Strobe. Each theme SHALL map AudioAnalysis data and a wall-clock time value to a Color using a different strategy. The Monochrome theme has been removed; its role is replaced by the Beacon overlay.
 
 #### Scenario: Spectrum theme tracks frequency content
 - **WHEN** the Spectrum theme is active and audio is playing
@@ -29,21 +33,6 @@ The system SHALL include these themes: Spectrum (default), Fire, Ocean, Monochro
 #### Scenario: Ocean theme
 - **WHEN** the Ocean theme is active
 - **THEN** colors stay within blue-teal-cyan range, mid-frequency content shifts hue
-
-#### Scenario: Monochrome theme
-- **WHEN** the Monochrome theme is active
-- **THEN** screen renders a single user-configurable colour (default white) with brightness modulated by bass and the quiet-state baseline pulse
-
-#### Scenario: Custom mono color persists
-- **WHEN** the user picks a magenta color for Mono and restarts the app
-- **THEN** the Mono theme continues to use the chosen magenta color
-
-#### Scenario: Color picker only visible when Mono is selected
-- **WHEN** the user is on the Party tab and Mono is not the selected theme
-- **THEN** no color picker is shown
-
-- **WHEN** the user selects Mono
-- **THEN** a hue + saturation picker (with a live preview swatch) appears beneath the theme selector. Brightness is intentionally audio-driven and not user-configurable.
 
 #### Scenario: Rainbow theme cycles continuously
 - **WHEN** the Rainbow theme is active
@@ -75,3 +64,20 @@ Every theme SHALL show some visible motion at all times, even when no audio is d
 #### Scenario: Audio resumes
 - **WHEN** audio energy rises back above the noise floor after a quiet passage
 - **THEN** the baseline pulse fades out and full audio-driven visualization resumes
+
+### Requirement: Themes are grouped on the Show tab
+The Show tab SHALL present themes organised into three groups, each labelled with a heading: **Spectrum**, **Mood**, **Pulse**. Group membership:
+- Spectrum: Spectrum, Rainbow
+- Mood: Fire, Ocean
+- Pulse: Breathe, Sweep, Strobe
+
+Each theme entry SHALL display its name and a one-line subtitle describing its behaviour.
+
+#### Scenario: Show tab renders three groups
+- **WHEN** the user opens the Show tab
+- **THEN** the visible UI contains three labelled groups (Spectrum, Mood, Pulse) listing the themes specified above, each with a one-line subtitle
+
+#### Scenario: Subtitle visible per theme
+- **WHEN** the Show tab is rendered
+- **THEN** each theme row SHALL display a one-line subtitle, not just the theme name
+

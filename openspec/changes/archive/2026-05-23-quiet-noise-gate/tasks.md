@@ -10,5 +10,5 @@
 
 - [x] 2.1 Build the debug APK: `./gradlew ktlintCheck :app:assembleDebug`
 - [x] 2.2 Install on the Nothing Phone (3a) and run with the room silent — confirm glyphs stop flickering and the quiet pulse takes over cleanly
-- [ ] 2.3 Play music at moderate volume — confirm full visualization still works (gate opens promptly, no perceptible lag)
-- [ ] 2.4 Fade music out — confirm the transition into silence is smooth (no jerky edge), the gate closes within ~1s of true silence
+- [x] 2.3 Play music at moderate volume — confirm full visualization still works (gate opens promptly, no perceptible lag) (verified on Phone 3a)
+- [x] 2.4 Fade music out — confirm the transition into silence is smooth (no jerky edge), the gate closes within ~1s of true silence (verified on Phone 3a)

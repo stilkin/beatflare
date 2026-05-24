@@ -17,12 +17,12 @@ import be.pocito.glyphsense.R
 import be.pocito.glyphsense.audio.AudioAnalysis
 import be.pocito.glyphsense.audio.AudioAnalyzer
 import be.pocito.glyphsense.audio.AudioCapture
+import be.pocito.glyphsense.flash.FlashController
 import be.pocito.glyphsense.glyph.GlyphController
 import be.pocito.glyphsense.glyph.GlyphDriver
 import be.pocito.glyphsense.model.DeviceProfile
 import be.pocito.glyphsense.model.SettingsStore
 import be.pocito.glyphsense.model.VisualizerSettings
-import be.pocito.glyphsense.widget.GlyphSenseWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,6 +47,9 @@ import kotlinx.coroutines.launch
  * [isRunning] and [analysisFlow] to render its display.
  */
 class GlyphSenseService : Service() {
+
+    /** Who currently needs the mic. Capture runs iff this set is non-empty. */
+    enum class Consumer { PERSISTENT, SHOW, BEACON }
 
     companion object {
         private const val TAG = "GlyphSenseService"
@@ -96,9 +99,30 @@ class GlyphSenseService : Service() {
 
         fun intentStop(context: Context): Intent =
             Intent(context, GlyphSenseService::class.java).setAction(ACTION_STOP)
+
+        // ─────────────────── Capture consumers ───────────────────
+        // The mic runs iff at least one consumer needs it; each consumer releases only
+        // what it started, so an overlay never tears down a persistent session (and vice
+        // versa). All calls are on the main thread, so the plain Set needs no locking.
+        private val consumers = mutableSetOf<Consumer>()
+
+        /** Mark [consumer] as needing the mic, starting capture if it was idle. Idempotent. */
+        fun acquire(context: Context, consumer: Consumer) {
+            val wasEmpty = consumers.isEmpty()
+            consumers.add(consumer)
+            if (wasEmpty) context.startForegroundService(intentStart(context))
+        }
+
+        /** Release [consumer]; stop capture only if no other consumer still needs it. */
+        fun release(context: Context, consumer: Consumer) {
+            if (consumers.remove(consumer) && consumers.isEmpty()) {
+                context.startService(intentStop(context))
+            }
+        }
     }
 
     private var controller: GlyphController? = null
+    private var flashController: FlashController? = null
     private lateinit var capture: AudioCapture
     private lateinit var analyzer: AudioAnalyzer
     private lateinit var driver: GlyphDriver
@@ -116,6 +140,8 @@ class GlyphSenseService : Service() {
         deviceProfile = DeviceProfile.detect()
         Log.d(TAG, "Device profile: ${deviceProfile?.name ?: "non-Nothing"}")
         if (isNothingDevice) controller = GlyphController(applicationContext)
+        // Flash is independent of glyphs — available on any phone with a rear torch.
+        FlashController(applicationContext).let { if (it.available) flashController = it }
         capture = AudioCapture()
         val spectrumBands = deviceProfile?.spectrumBands ?: 20
         analyzer = AudioAnalyzer(spectrumBands = spectrumBands)
@@ -144,6 +170,7 @@ class GlyphSenseService : Service() {
         Log.d(TAG, "onDestroy")
         stopPipeline()
         controller?.release()
+        flashController?.stop()
         _isRunning.value = false
         scope.coroutineContext[Job]?.cancel()
         super.onDestroy()
@@ -167,7 +194,6 @@ class GlyphSenseService : Service() {
             return
         }
         _isRunning.value = true
-        GlyphSenseWidget.notifyStateChanged(applicationContext)
         pipelineJob = scope.launch {
             try {
                 capture.buffers.collect { buf ->
@@ -175,6 +201,11 @@ class GlyphSenseService : Service() {
                     _analysisFlow.tryEmit(analysis)
                     if (_settings.value.glyphsOutputEnabled) {
                         controller?.setFrameColors(driver.render(analysis, _settings.value))
+                    }
+                    if (_settings.value.flashEnabled) {
+                        flashController?.render(analysis, _settings.value.flashIntensity)
+                    } else {
+                        flashController?.stop() // torch off promptly when toggled off mid-session
                     }
                 }
             } catch (e: Exception) {
@@ -188,8 +219,11 @@ class GlyphSenseService : Service() {
         pipelineJob = null
         capture.stop()
         controller?.setFrameColors(driver.blankFrame())
+        flashController?.stop()
         _isRunning.value = false
-        GlyphSenseWidget.notifyStateChanged(applicationContext)
+        // Capture has fully stopped — drop all tokens so a later acquire restarts cleanly,
+        // even for stop paths that bypass release() (the notification action, an external kill).
+        consumers.clear()
     }
 
     // ─────────────────────────── Notification ───────────────────────────

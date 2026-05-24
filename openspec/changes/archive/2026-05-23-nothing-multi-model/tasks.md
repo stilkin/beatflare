@@ -20,5 +20,5 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Verify Phone (3a) still works identically (regression test)
-- [ ] 4.2 Verify build compiles cleanly with all profile definitions
+- [x] 4.1 Verify Phone (3a) still works identically (regression test)
+- [x] 4.2 Verify build compiles cleanly with all profile definitions

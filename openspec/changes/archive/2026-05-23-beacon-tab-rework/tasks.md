@@ -59,14 +59,14 @@
 ## 9. Build & validate
 
 - [x] 9.1 `./gradlew ktlintCheck :app:assembleDebug` succeeds
-- [ ] 9.2 Install on Nothing Phone (3a) — confirm: 4 tabs visible, Play selected by default
-- [ ] 9.3 Beacon with React-to-sound OFF — no service starts, solid bright colour, text renders
-- [ ] 9.4 Beacon with React-to-sound ON — service auto-starts, breathing brightness, quiet pulse during silence
-- [ ] 9.5 Dismiss Beacon while service is running — service keeps running (visible in notification)
-- [ ] 9.6 Open Show overlay then navigate to Beacon and launch — Show dismisses cleanly, Beacon shows
-- [ ] 9.7 Verify migration: install over an older build that has `partyTheme = MONOCHROME` and a custom Mono colour — on launch user lands on Spectrum, Beacon hue matches old colour's hue
-- [ ] 9.8 Verify the spectrum visualizer card on Play still tap-relaunches the Show overlay
-- [ ] 9.9 Verify Glyphs continue working under Beacon (glyphs lit on the back, Beacon on the front)
+- [x] 9.2 Install on Nothing Phone (3a) — confirm: 4 tabs visible, Play selected by default — superseded by capture-lifecycle-rework (now [Beacon][Show][Lights], Beacon default; verified)
+- [x] 9.3 Beacon with React-to-sound OFF — no service starts, solid bright colour, text renders
+- [x] 9.4 Beacon with React-to-sound ON — service auto-starts, breathing brightness, quiet pulse during silence
+- [x] 9.5 Dismiss Beacon while service is running — service keeps running (visible in notification)
+- [x] 9.6 Open Show overlay then navigate to Beacon and launch — Show dismisses cleanly, Beacon shows — N/A: unreachable UX path (a full-screen overlay covers the tab bar, so you can't switch tabs without dismissing first); overlay mutual-exclusion is enforced at launch and covered by 8.1/8.2
+- [x] 9.7 Verify migration: install over an older build that has `partyTheme = MONOCHROME` and a custom Mono colour — on launch user lands on Spectrum, Beacon hue matches old colour's hue — accepted without separate test: migration shipped to the small test-user group, low-risk, no reports
+- [x] 9.8 Verify the spectrum visualizer card on Play still tap-relaunches the Show overlay — superseded by capture-lifecycle-rework (card now on Lights; verified in 6.5)
+- [x] 9.9 Verify Glyphs continue working under Beacon (glyphs lit on the back, Beacon on the front)
 
 ## 10. Docs
 

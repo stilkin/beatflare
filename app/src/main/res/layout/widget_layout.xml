@@ -28,7 +28,7 @@
             android:id="@+id/widget_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tap to start"
+            android:text="Tap to show"
             android:textColor="#AAFFFFFF"
             android:textSize="12sp" />
 
